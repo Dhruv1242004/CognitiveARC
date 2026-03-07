@@ -87,7 +87,7 @@ export default function TechStack() {
                     className="flex justify-center gap-4 flex-wrap"
                 >
                     <a
-                        href="https://github.com"
+                        href="https://github.com/Dhruv1242004/CognitiveARC"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn btn-primary"
@@ -95,7 +95,12 @@ export default function TechStack() {
                         <Github size={16} />
                         View Source Code
                     </a>
-                    <a href="#" className="btn btn-secondary">
+                    <a
+                        href="https://github.com/Dhruv1242004/CognitiveARC/blob/main/README.md"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-secondary"
+                    >
                         <FileText size={16} />
                         Project Documentation
                     </a>

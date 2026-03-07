@@ -75,13 +75,13 @@ export default function Hero() {
                             Live Demo
                         </a>
                         <a
-                            href="https://github.com"
+                            href="https://github.com/Dhruv1242004/CognitiveARC"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-secondary btn-pill"
                         >
                             <Github size={15} />
-                            GitHub
+                            Source Code
                         </a>
                     </motion.div>
 
