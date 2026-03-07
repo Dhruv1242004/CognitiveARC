@@ -23,9 +23,21 @@ app = FastAPI(
     version="1.0.0",
 )
 
+import os
+
+_allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+# Allow the Vercel production URL if set
+_vercel_url = os.getenv("FRONTEND_URL")
+if _vercel_url:
+    _allowed_origins.append(_vercel_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # All Vercel preview deploys
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
