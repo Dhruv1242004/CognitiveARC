@@ -110,26 +110,31 @@ export default function Architecture() {
                                     );
 
                                     return (
-                                        <div key={node.label} className="relative grid grid-cols-[1fr_auto_1fr] items-center min-h-[108px]">
-                                            <div className="pr-8">{isLeft ? card : null}</div>
-                                            <div className="relative w-9 h-9 flex items-center justify-center">
+                                        <div key={node.label} className="relative grid grid-cols-[1fr_auto_1fr] items-center min-h-[96px]">
+                                            <div className="pr-6">{isLeft ? card : null}</div>
+                                            <div className="relative w-10 h-10 flex items-center justify-center">
+                                                {/* Connector line (behind badge) */}
                                                 <div
-                                                    className="w-7 h-7 rounded-full flex items-center justify-center border border-[rgba(34,211,238,0.3)]"
-                                                    style={{ background: `${node.color}22` }}
+                                                    className={`absolute top-1/2 -translate-y-1/2 h-[2px] bg-cyan-300/40 ${isLeft ? "-left-4" : "-right-4"}`}
+                                                    style={{ width: "1.25rem" }}
+                                                />
+                                                {/* Number badge (on top) */}
+                                                <div
+                                                    className="relative z-10 w-8 h-8 rounded-full flex items-center justify-center border shadow-[0_0_12px_rgba(34,211,238,0.15)]"
+                                                    style={{
+                                                        background: `color-mix(in srgb, ${node.color} 15%, #0c1824)`,
+                                                        borderColor: `${node.color}50`,
+                                                    }}
                                                 >
                                                     <span
-                                                        className="text-[10px] font-bold leading-none"
+                                                        className="text-[11px] font-bold leading-none"
                                                         style={{ color: node.color }}
                                                     >
                                                         {String(i + 1).padStart(2, "0")}
                                                     </span>
                                                 </div>
-                                                <div
-                                                    className={`absolute top-1/2 -translate-y-1/2 h-[2px] ${isLeft ? "right-5" : "left-5"} bg-cyan-300/55`}
-                                                    style={{ width: "1.6rem" }}
-                                                />
                                             </div>
-                                            <div className="pl-8">{!isLeft ? card : null}</div>
+                                            <div className="pl-6">{!isLeft ? card : null}</div>
                                         </div>
                                     );
                                 })}
