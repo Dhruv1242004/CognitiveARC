@@ -5,7 +5,6 @@ so no external embedding API is required.
 """
 
 import chromadb
-from chromadb.config import Settings
 
 _client = None
 _collections: dict[str, chromadb.Collection] = {}
@@ -14,10 +13,9 @@ _collections: dict[str, chromadb.Collection] = {}
 def _get_client() -> chromadb.ClientAPI:
     global _client
     if _client is None:
-        _client = chromadb.Client(Settings(
-            anonymized_telemetry=False,
-            is_persistent=False,
-        ))
+        # Use EphemeralClient (in-memory, no persistence) to avoid
+        # Pydantic v1 Settings compatibility issues on Render
+        _client = chromadb.EphemeralClient()
     return _client
 
 
