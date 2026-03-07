@@ -131,30 +131,52 @@ export default function Architecture() {
                             </div>
                         </div>
 
-                        {/* Mobile fallback */}
+                        {/* Mobile layout */}
                         <div className="relative md:hidden">
-                            <div className="absolute left-3 top-2 bottom-2 w-[2px] rounded-full bg-gradient-to-b from-cyan-300 via-cyan-300/95 to-cyan-400/70 shadow-[0_0_16px_rgba(34,211,238,0.45)]" />
-                            <div className="pl-8 flex flex-col gap-2.5">
+                            {/* Center glow line */}
+                            <div className="absolute left-[1.15rem] top-0 bottom-0 w-[2px] rounded-full bg-gradient-to-b from-cyan-400/80 via-blue-500/60 to-purple-500/40" />
+
+                            <div className="flex flex-col gap-0">
                                 {pipelineNodes.map((node, i) => {
                                     const Icon = node.icon;
+                                    const isLast = i === pipelineNodes.length - 1;
                                     return (
-                                        <div key={node.label} className="relative">
-                                            <div className="absolute -left-[1.85rem] top-5 w-2.5 h-2.5 rounded-sm bg-cyan-300/90 shadow-[0_0_10px_rgba(34,211,238,0.35)]" />
+                                        <div key={node.label} className="relative flex items-stretch">
+                                            {/* Timeline dot + connector */}
+                                            <div className="flex flex-col items-center shrink-0 w-[2.35rem]">
+                                                <div
+                                                    className="w-[1.65rem] h-[1.65rem] rounded-full flex items-center justify-center shrink-0 mt-3 border border-[rgba(34,211,238,0.25)] backdrop-blur-sm"
+                                                    style={{ background: `${node.color}22` }}
+                                                >
+                                                    <span
+                                                        className="text-[9px] font-bold leading-none"
+                                                        style={{ color: node.color }}
+                                                    >
+                                                        {String(i + 1).padStart(2, "0")}
+                                                    </span>
+                                                </div>
+                                                {!isLast && (
+                                                    <div className="flex-1 w-[2px] bg-gradient-to-b from-cyan-400/30 to-transparent min-h-[0.5rem]" />
+                                                )}
+                                            </div>
+
+                                            {/* Card */}
                                             <motion.div
-                                                whileHover={{
-                                                    borderColor: "rgba(56,223,255,0.36)",
-                                                    boxShadow: "0 0 0 1px rgba(34,211,238,0.14), 0 0 20px rgba(34,211,238,0.12)",
-                                                    backgroundColor: "rgba(14, 31, 43, 0.50)",
-                                                }}
-                                                className="flex items-center gap-3 py-3 px-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-card)] transition-colors"
+                                                initial={{ opacity: 0, x: -8 }}
+                                                whileInView={{ opacity: 1, x: 0 }}
+                                                viewport={{ once: true }}
+                                                transition={{ delay: i * 0.04, duration: 0.25 }}
+                                                className="flex-1 ml-2 mb-2 flex items-center gap-2.5 py-2.5 px-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-card)]/80 backdrop-blur-sm"
                                             >
-                                                <div className="w-8 h-8 rounded-md flex items-center justify-center" style={{ background: `${node.color}20` }}>
-                                                    <Icon size={15} style={{ color: node.color }} />
+                                                <div
+                                                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                                                    style={{ background: `${node.color}18` }}
+                                                >
+                                                    <Icon size={13} style={{ color: node.color }} />
                                                 </div>
-                                                <div>
-                                                    <p className="text-sm text-[var(--text-primary)]">{node.label}</p>
-                                                    <p className="text-[11px] text-[var(--text-muted)]">Stage {String(i + 1).padStart(2, "0")}</p>
-                                                </div>
+                                                <p className="text-[13px] leading-tight font-medium text-[var(--text-secondary)]">
+                                                    {node.label}
+                                                </p>
                                             </motion.div>
                                         </div>
                                     );
