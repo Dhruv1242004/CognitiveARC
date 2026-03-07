@@ -103,14 +103,9 @@ export default function Architecture() {
                                             >
                                                 <Icon size={16} style={{ color: node.color }} />
                                             </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-[15px] leading-tight font-medium text-[var(--text-secondary)]">
-                                                    {node.label}
-                                                </p>
-                                                <p className="text-[11px] mt-0.5 text-[var(--text-muted)]">
-                                                    Stage {String(i + 1).padStart(2, "0")}
-                                                </p>
-                                            </div>
+                                            <p className="text-[15px] leading-tight font-medium text-[var(--text-secondary)]">
+                                                {node.label}
+                                            </p>
                                         </motion.div>
                                     );
 
@@ -118,7 +113,17 @@ export default function Architecture() {
                                         <div key={node.label} className="relative grid grid-cols-[1fr_auto_1fr] items-center min-h-[108px]">
                                             <div className="pr-8">{isLeft ? card : null}</div>
                                             <div className="relative w-9 h-9 flex items-center justify-center">
-                                                <div className="w-2.5 h-2.5 bg-cyan-300/90 rounded-sm shadow-[0_0_10px_rgba(34,211,238,0.35)]" />
+                                                <div
+                                                    className="w-7 h-7 rounded-full flex items-center justify-center border border-[rgba(34,211,238,0.3)]"
+                                                    style={{ background: `${node.color}22` }}
+                                                >
+                                                    <span
+                                                        className="text-[10px] font-bold leading-none"
+                                                        style={{ color: node.color }}
+                                                    >
+                                                        {String(i + 1).padStart(2, "0")}
+                                                    </span>
+                                                </div>
                                                 <div
                                                     className={`absolute top-1/2 -translate-y-1/2 h-[2px] ${isLeft ? "right-5" : "left-5"} bg-cyan-300/55`}
                                                     style={{ width: "1.6rem" }}
