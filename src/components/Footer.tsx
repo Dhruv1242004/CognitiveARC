@@ -13,7 +13,7 @@ export default function Footer() {
                     </span>
                 </a>
                 <span className="text-xs text-[var(--text-muted)]">
-                    © {new Date().getFullYear()} CognitiveARC. Built for demonstration purposes.
+                    © {new Date().getFullYear()} CognitiveARC. Built as a real AI systems engineering project.
                 </span>
             </div>
         </footer>

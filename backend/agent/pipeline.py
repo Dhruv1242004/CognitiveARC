@@ -115,7 +115,7 @@ async def run_pipeline(
         retrieved_context = await retrieve_context(
             query=query,
             doc_id=document_id,
-            n_results=5,
+            n_results=4,
         )
         if retrieved_context:
             reasoning_steps.append(f"   → Retrieved {len(retrieved_context)} relevant chunks (top relevance: {retrieved_context[0]['relevance']})")
@@ -150,7 +150,7 @@ async def run_pipeline(
         context_lines = ["Retrieved Context:"]
         for i, ctx in enumerate(retrieved_context):
             context_lines.append(f"\n--- Document {i+1} (source: {ctx['source']}, relevance: {ctx['relevance']}) ---")
-            context_lines.append(ctx["text"][:1500])
+            context_lines.append(ctx["text"][:1000])
         context_section = "\n".join(context_lines)
     else:
         context_section = "No document context available."

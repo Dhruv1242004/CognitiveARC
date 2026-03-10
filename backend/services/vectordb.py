@@ -4,7 +4,14 @@ Uses ChromaDB's built-in embedding function (sentence-transformers)
 so no external embedding API is required.
 """
 
+import os
+import logging
+
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "FALSE")
+logging.getLogger("chromadb.telemetry.product.posthog").disabled = True
+
 import chromadb
+from chromadb.config import Settings
 
 _client = None
 _collections: dict[str, chromadb.Collection] = {}
@@ -13,9 +20,16 @@ _collections: dict[str, chromadb.Collection] = {}
 def _get_client() -> chromadb.ClientAPI:
     global _client
     if _client is None:
-        # Use EphemeralClient (in-memory, no persistence) to avoid
-        # Pydantic v1 Settings compatibility issues on Render
-        _client = chromadb.EphemeralClient()
+        settings = Settings(anonymized_telemetry=False)
+        persist_dir = os.getenv("CHROMA_PERSIST_DIR")
+        if persist_dir:
+            _client = chromadb.PersistentClient(
+                path=persist_dir,
+                settings=settings,
+            )
+        else:
+            # Fall back to in-memory mode when no writable persistence path is configured.
+            _client = chromadb.EphemeralClient(settings=settings)
     return _client
 
 

@@ -3,17 +3,25 @@ CognitiveARC — FastAPI Backend Server
 Autonomous AI Agent Platform with RAG, tool orchestration, and modular pipeline.
 """
 
+import asyncio
+import uuid
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
-import uuid
 
 load_dotenv()
 
 from agent.pipeline import run_pipeline
+from services.llm import VisionExtractionError, extract_text_from_image
 from services.vectordb import add_documents, get_document_count
-from utils.document import extract_text_from_file, SUPPORTED_EXTENSIONS
+from utils.document import (
+    SUPPORTED_EXTENSIONS,
+    extract_text_from_file,
+    get_file_extension,
+    is_image_file,
+)
 from utils.chunker import chunk_text_by_paragraphs
 
 
@@ -114,7 +122,7 @@ async def upload_document(file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+    ext = get_file_extension(file.filename)
     if ext not in SUPPORTED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
@@ -132,7 +140,13 @@ async def upload_document(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
 
     try:
-        text = extract_text_from_file(content, file.filename)
+        if is_image_file(file.filename):
+            mime_type = file.content_type or f"image/{'jpeg' if ext == 'jpg' else ext}"
+            text = await extract_text_from_image(content, mime_type)
+        else:
+            text = await asyncio.to_thread(extract_text_from_file, content, file.filename)
+    except VisionExtractionError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -141,7 +155,13 @@ async def upload_document(file: UploadFile = File(...)):
     if not text.strip():
         raise HTTPException(status_code=400, detail="No text could be extracted from the file")
 
-    chunks = chunk_text_by_paragraphs(text, max_chunk_size=500)
+    word_count = len(text.split())
+    target_chunk_size = 700 if word_count > 2500 else 500
+    chunks = await asyncio.to_thread(
+        chunk_text_by_paragraphs,
+        text,
+        target_chunk_size,
+    )
     if not chunks:
         raise HTTPException(status_code=400, detail="Document produced no chunks")
 
@@ -153,7 +173,8 @@ async def upload_document(file: UploadFile = File(...)):
     ]
 
     try:
-        num_stored = add_documents(
+        num_stored = await asyncio.to_thread(
+            add_documents,
             doc_id=doc_id,
             chunks=chunks,
             metadata_list=metadata_list,

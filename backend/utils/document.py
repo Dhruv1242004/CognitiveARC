@@ -18,6 +18,14 @@ SUPPORTED_EXTENSIONS = {
 }
 
 
+def get_file_extension(filename: str) -> str:
+    return filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+
+
+def is_image_file(filename: str) -> bool:
+    return get_file_extension(filename) in IMAGE_EXTENSIONS
+
+
 def extract_text_from_pdf(file_bytes: bytes) -> str:
     """Extract text content from a PDF file."""
     reader = PdfReader(io.BytesIO(file_bytes))
@@ -81,45 +89,9 @@ def extract_text_from_xlsx(file_bytes: bytes) -> str:
     return "\n\n".join(sheet_blocks)
 
 
-def extract_text_from_image(file_bytes: bytes) -> str:
-    """Extract text from an image via OCR (Tesseract)."""
-    try:
-        from PIL import Image
-    except ImportError as exc:
-        raise RuntimeError("Image support requires 'pillow' to be installed.") from exc
-
-    try:
-        import pytesseract
-    except ImportError as exc:
-        raise RuntimeError("Image OCR requires 'pytesseract' to be installed.") from exc
-
-    try:
-        image = Image.open(io.BytesIO(file_bytes))
-        # Preprocess image for faster, more reliable OCR.
-        image = image.convert("L")
-        max_width = 1800
-        if image.width > max_width:
-            ratio = max_width / float(image.width)
-            image = image.resize((max_width, int(image.height * ratio)))
-
-        # Use a generous timeout to avoid false timeouts on first-run OCR warmup.
-        return pytesseract.image_to_string(image, timeout=45, config="--psm 6").strip()
-    except pytesseract.TesseractNotFoundError as exc:
-        raise RuntimeError(
-            "Image OCR requires Tesseract to be installed on the server."
-        ) from exc
-    except RuntimeError as exc:
-        # pytesseract raises RuntimeError on timeout
-        if "timed out" in str(exc).lower():
-            raise RuntimeError(
-                "Image OCR timed out. Try a smaller/clearer image or retry."
-            ) from exc
-        raise
-
-
 def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     """Extract text based on file type."""
-    ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    ext = get_file_extension(filename)
 
     if ext == "pdf":
         return extract_text_from_pdf(file_bytes)
@@ -130,7 +102,7 @@ def extract_text_from_file(file_bytes: bytes, filename: str) -> str:
     elif ext == "xlsx":
         return extract_text_from_xlsx(file_bytes)
     elif ext in IMAGE_EXTENSIONS:
-        return extract_text_from_image(file_bytes)
+        raise RuntimeError("Image files must be routed through the vision OCR pipeline.")
     elif ext in TEXT_EXTENSIONS:
         return file_bytes.decode("utf-8", errors="replace")
 

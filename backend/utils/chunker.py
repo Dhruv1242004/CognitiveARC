@@ -46,6 +46,13 @@ def chunk_text_by_paragraphs(
 
     for para in paragraphs:
         para_size = len(para.split())
+        if para_size > max_chunk_size:
+            if current_chunk:
+                chunks.append("\n\n".join(current_chunk))
+                current_chunk = []
+                current_size = 0
+            chunks.extend(chunk_text(para, chunk_size=max_chunk_size, chunk_overlap=75))
+            continue
         if current_size + para_size > max_chunk_size and current_chunk:
             chunks.append("\n\n".join(current_chunk))
             current_chunk = [para]
