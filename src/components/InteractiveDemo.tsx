@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Send,
@@ -41,6 +41,7 @@ interface UploadResult {
     filename: string;
     chunks: number;
     message: string;
+    status: "processing" | "completed" | "failed";
 }
 
 export default function InteractiveDemo() {
@@ -56,6 +57,7 @@ export default function InteractiveDemo() {
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Inline text for "Extract insights"
     const [inlineText, setInlineText] = useState("");
@@ -108,12 +110,16 @@ export default function InteractiveDemo() {
                 !payload ||
                 typeof payload.document_id !== "string" ||
                 typeof payload.filename !== "string" ||
-                typeof payload.chunks !== "number"
+                typeof payload.chunks !== "number" ||
+                (payload.status !== "processing" &&
+                    payload.status !== "completed" &&
+                    payload.status !== "failed")
             ) {
                 throw new Error("Invalid upload response from server");
             }
 
             setUploadedDoc(payload as unknown as UploadResult);
+            setUploading((payload.status as UploadResult["status"]) === "processing");
         } catch (e: unknown) {
             const msg = e instanceof Error ? e.message : "Upload failed";
             setUploadError(msg);
@@ -121,6 +127,78 @@ export default function InteractiveDemo() {
             setUploading(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (!uploadedDoc || uploadedDoc.status !== "processing") {
+            if (pollTimeoutRef.current) {
+                clearTimeout(pollTimeoutRef.current);
+                pollTimeoutRef.current = null;
+            }
+            return;
+        }
+
+        let cancelled = false;
+        const pollStatus = async () => {
+            try {
+                const res = await fetch(`/api/upload/${uploadedDoc.document_id}`);
+                const raw = await res.text();
+                let payload: Record<string, unknown> | null = null;
+                if (raw) {
+                    try {
+                        payload = JSON.parse(raw);
+                    } catch {
+                        payload = null;
+                    }
+                }
+
+                if (!res.ok) {
+                    const detail =
+                        (payload?.detail as string | undefined) ||
+                        (payload?.message as string | undefined) ||
+                        `Upload failed (${res.status})`;
+                    throw new Error(detail);
+                }
+
+                if (
+                    !payload ||
+                    typeof payload.document_id !== "string" ||
+                    typeof payload.filename !== "string" ||
+                    typeof payload.chunks !== "number" ||
+                    (payload.status !== "processing" &&
+                        payload.status !== "completed" &&
+                        payload.status !== "failed")
+                ) {
+                    throw new Error("Invalid upload status response");
+                }
+
+                if (cancelled) return;
+                const next = payload as unknown as UploadResult;
+                setUploadedDoc(next);
+                setUploading(next.status === "processing");
+                if (next.status === "failed") {
+                    setUploadError(next.message);
+                    return;
+                }
+                if (next.status === "processing") {
+                    pollTimeoutRef.current = setTimeout(pollStatus, 1200);
+                }
+            } catch (e: unknown) {
+                if (cancelled) return;
+                const msg = e instanceof Error ? e.message : "Upload failed";
+                setUploadError(msg);
+                setUploading(false);
+            }
+        };
+
+        pollTimeoutRef.current = setTimeout(pollStatus, 900);
+        return () => {
+            cancelled = true;
+            if (pollTimeoutRef.current) {
+                clearTimeout(pollTimeoutRef.current);
+                pollTimeoutRef.current = null;
+            }
+        };
+    }, [uploadedDoc]);
 
     const runQuery = useCallback(
         async (query: string, textInput?: string) => {
@@ -177,6 +255,10 @@ export default function InteractiveDemo() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!input.trim() || loading) return;
+        if (uploadedDoc?.status === "processing") {
+            setError("Document is still being indexed. Please wait a moment.");
+            return;
+        }
         const text = showTextArea ? inlineText : undefined;
         runQuery(input.trim(), text);
     };
@@ -243,7 +325,11 @@ export default function InteractiveDemo() {
                                 </div>
                                 {uploadedDoc && (
                                     <button
-                                        onClick={() => setUploadedDoc(null)}
+                                        onClick={() => {
+                                            setUploadedDoc(null);
+                                            setUploadError(null);
+                                            setUploading(false);
+                                        }}
                                         className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
                                     >
                                         <X size={14} />
@@ -252,14 +338,28 @@ export default function InteractiveDemo() {
                             </div>
 
                             {uploadedDoc ? (
-                                <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-green-950/20 border border-green-900/40">
-                                    <CheckCircle size={16} className="text-green-400 shrink-0" />
+                                <div className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
+                                    uploadedDoc.status === "completed"
+                                        ? "bg-green-950/20 border-green-900/40"
+                                        : "bg-[var(--bg-primary)] border-[var(--border-medium)]"
+                                }`}>
+                                    {uploadedDoc.status === "completed" ? (
+                                        <CheckCircle size={16} className="text-green-400 shrink-0" />
+                                    ) : (
+                                        <Loader2 size={16} className="animate-spin text-[var(--accent-cyan)] shrink-0" />
+                                    )}
                                     <div className="min-w-0">
-                                        <p className="text-sm text-green-400 font-medium truncate">
+                                        <p className={`text-sm font-medium truncate ${
+                                            uploadedDoc.status === "completed"
+                                                ? "text-green-400"
+                                                : "text-[var(--text-secondary)]"
+                                        }`}>
                                             {uploadedDoc.filename}
                                         </p>
                                         <p className="text-xs text-[var(--text-muted)]">
-                                            {uploadedDoc.chunks} chunks indexed
+                                            {uploadedDoc.status === "completed"
+                                                ? `${uploadedDoc.chunks} chunks indexed`
+                                                : "Indexing document..."}
                                         </p>
                                     </div>
                                 </div>
@@ -275,7 +375,7 @@ export default function InteractiveDemo() {
                                         <FileUp size={20} className="text-[var(--text-muted)]" />
                                     )}
                                     <span className="text-xs text-[var(--text-muted)]">
-                                        {uploading ? "Processing document..." : "Drop a PDF or click to upload"}
+                                        {uploading ? "Uploading and indexing..." : "Drop a PDF or click to upload"}
                                     </span>
                                 </button>
                             )}
@@ -310,12 +410,12 @@ export default function InteractiveDemo() {
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     placeholder={uploadedDoc ? "Ask about your document..." : "Enter your prompt..."}
-                                    disabled={loading}
+                                    disabled={loading || uploadedDoc?.status === "processing"}
                                     className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-4 py-2.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-cyan)] transition-colors disabled:opacity-50"
                                 />
                                 <button
                                     type="submit"
-                                    disabled={loading || !input.trim()}
+                                    disabled={loading || !input.trim() || uploadedDoc?.status === "processing"}
                                     className="btn btn-primary px-3 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {loading ? (

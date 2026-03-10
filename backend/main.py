@@ -75,12 +75,79 @@ class UploadResponse(BaseModel):
     filename: str
     chunks: int
     message: str
+    status: str
+
+
+class UploadJob:
+    def __init__(self, document_id: str, filename: str):
+        self.document_id = document_id
+        self.filename = filename
+        self.chunks = 0
+        self.message = "Upload received. Processing document..."
+        self.status = "processing"
+        self.error: str | None = None
 
 
 class HealthResponse(BaseModel):
     status: str
     documents_indexed: int
     version: str
+
+
+_upload_jobs: dict[str, UploadJob] = {}
+
+
+async def _process_upload(
+    *,
+    doc_id: str,
+    filename: str,
+    content: bytes,
+    content_type: str | None,
+) -> None:
+    job = _upload_jobs[doc_id]
+    ext = get_file_extension(filename)
+
+    try:
+        if is_image_file(filename):
+            mime_type = content_type or f"image/{'jpeg' if ext == 'jpg' else ext}"
+            text = await extract_text_from_image(content, mime_type)
+        else:
+            text = await asyncio.to_thread(extract_text_from_file, content, filename)
+
+        if not text.strip():
+            raise RuntimeError("No text could be extracted from the file")
+
+        word_count = len(text.split())
+        target_chunk_size = 700 if word_count > 2500 else 500
+        chunks = await asyncio.to_thread(
+            chunk_text_by_paragraphs,
+            text,
+            target_chunk_size,
+        )
+        if not chunks:
+            raise RuntimeError("Document produced no chunks")
+
+        metadata_list = [
+            {"doc_id": doc_id, "chunk_index": i, "source": filename}
+            for i in range(len(chunks))
+        ]
+        num_stored = await asyncio.to_thread(
+            add_documents,
+            doc_id=doc_id,
+            chunks=chunks,
+            metadata_list=metadata_list,
+        )
+        job.chunks = num_stored
+        job.status = "completed"
+        job.message = f"Successfully indexed {num_stored} chunks from {filename}"
+    except VisionExtractionError as exc:
+        job.status = "failed"
+        job.error = str(exc)
+        job.message = str(exc)
+    except Exception as exc:
+        job.status = "failed"
+        job.error = str(exc)
+        job.message = f"Processing failed: {exc}"
 
 
 # ── Endpoints ──
@@ -118,7 +185,7 @@ async def process_query(request: QueryRequest):
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_document(file: UploadFile = File(...)):
-    """Upload a document, extract text, chunk, and index in ChromaDB."""
+    """Accept a document upload and process indexing asynchronously."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -139,54 +206,41 @@ async def upload_document(file: UploadFile = File(...)):
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
 
-    try:
-        if is_image_file(file.filename):
-            mime_type = file.content_type or f"image/{'jpeg' if ext == 'jpg' else ext}"
-            text = await extract_text_from_image(content, mime_type)
-        else:
-            text = await asyncio.to_thread(extract_text_from_file, content, file.filename)
-    except VisionExtractionError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not extract text: {str(e)}")
-
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="No text could be extracted from the file")
-
-    word_count = len(text.split())
-    target_chunk_size = 700 if word_count > 2500 else 500
-    chunks = await asyncio.to_thread(
-        chunk_text_by_paragraphs,
-        text,
-        target_chunk_size,
-    )
-    if not chunks:
-        raise HTTPException(status_code=400, detail="Document produced no chunks")
-
-    # Store in vector database — ChromaDB generates embeddings automatically
     doc_id = f"doc_{uuid.uuid4().hex[:8]}"
-    metadata_list = [
-        {"doc_id": doc_id, "chunk_index": i, "source": file.filename}
-        for i in range(len(chunks))
-    ]
-
-    try:
-        num_stored = await asyncio.to_thread(
-            add_documents,
+    _upload_jobs[doc_id] = UploadJob(document_id=doc_id, filename=file.filename)
+    asyncio.create_task(
+        _process_upload(
             doc_id=doc_id,
-            chunks=chunks,
-            metadata_list=metadata_list,
+            filename=file.filename,
+            content=content,
+            content_type=file.content_type,
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Indexing failed: {str(e)}")
+    )
 
     return UploadResponse(
         document_id=doc_id,
         filename=file.filename,
-        chunks=num_stored,
-        message=f"Successfully indexed {num_stored} chunks from {file.filename}",
+        chunks=0,
+        message=f"Upload received. Processing {file.filename}...",
+        status="processing",
+    )
+
+
+@app.get("/api/upload/{document_id}", response_model=UploadResponse)
+async def get_upload_status(document_id: str):
+    """Fetch the current processing status for an uploaded document."""
+    job = _upload_jobs.get(document_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Upload job not found")
+    if job.status == "failed" and job.error:
+        raise HTTPException(status_code=500, detail=job.error)
+
+    return UploadResponse(
+        document_id=job.document_id,
+        filename=job.filename,
+        chunks=job.chunks,
+        message=job.message,
+        status=job.status,
     )
 
 
