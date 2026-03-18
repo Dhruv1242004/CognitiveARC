@@ -88,14 +88,14 @@ body::before {
 .section-shell {
   position: relative;
   margin: 0 auto;
-  max-width: 88rem;
-  padding: 5.5rem 1.5rem;
+  max-width: 82rem;
+  padding: 5rem 1.5rem;
 }
 
 .section-header {
-  margin: 0 auto 2.75rem;
-  max-width: 48rem;
-  text-align: center;
+  margin: 0 0 2.3rem;
+  max-width: 44rem;
+  text-align: left;
 }
 
 .section-kicker {
@@ -123,10 +123,10 @@ body::before {
 }
 
 .section-copy {
-  margin: 1rem auto 0;
-  max-width: 40rem;
+  margin: 1rem 0 0;
+  max-width: 38rem;
   font-size: 1rem;
-  line-height: 1.95;
+  line-height: 1.8;
   color: var(--text-secondary);
 }
 
@@ -143,16 +143,16 @@ body::before {
 .surface-card,
 .console-panel {
   border: 1px solid var(--border-muted);
-  border-radius: 1.8rem;
+  border-radius: 1.35rem;
   background: linear-gradient(180deg, rgba(12, 18, 28, 0.94), rgba(8, 13, 21, 0.86));
   box-shadow:
-    0 16px 60px rgba(0, 0, 0, 0.26),
+    0 12px 40px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
 }
 
 .surface-card {
-  padding: 1.5rem;
+  padding: 1.3rem;
 }
 
 .console-topbar {
@@ -221,7 +221,7 @@ body::before {
   flex-direction: column;
   gap: 0.35rem;
   border: 1px solid var(--border-muted);
-  border-radius: 1.35rem;
+  border-radius: 1rem;
   background: rgba(10, 15, 24, 0.76);
   padding: 1rem 1.05rem;
 }
@@ -290,7 +290,7 @@ body::before {
   display: flex;
   gap: 0.95rem;
   border: 1px solid var(--border-muted);
-  border-radius: 1.25rem;
+  border-radius: 1rem;
   background: rgba(9, 14, 23, 0.76);
   padding: 0.95rem;
 }
@@ -347,13 +347,138 @@ body::before {
   color: var(--text-primary);
 }
 
+.demo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border-muted);
+  padding: 1.2rem 1.25rem;
+}
+
+.demo-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.demo-heading {
+  margin-top: 0.45rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.demo-subtitle {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.demo-textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border-muted);
+  border-radius: 1rem;
+  background: rgba(9, 14, 23, 0.9);
+  padding: 0.95rem 1rem;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.demo-textarea:focus {
+  border-color: var(--border-strong);
+}
+
+.demo-upload-card {
+  border: 1px solid var(--border-muted);
+  border-radius: 1.1rem;
+  background: rgba(11, 17, 27, 0.88);
+  padding: 1rem;
+}
+
+.demo-chip,
+.demo-pill,
+.demo-tab,
+.demo-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border-muted);
+  border-radius: 999px;
+  transition: all 160ms ease;
+}
+
+.demo-chip {
+  background: rgba(10, 16, 26, 0.72);
+  padding: 0.55rem 0.85rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.demo-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.demo-pill {
+  background: rgba(10, 16, 26, 0.72);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+}
+
+.demo-tab {
+  background: rgba(10, 16, 26, 0.72);
+  padding: 0.55rem 0.85rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.demo-tab.is-active {
+  border-color: var(--border-strong);
+  background: rgba(23, 42, 64, 0.72);
+  color: var(--text-primary);
+}
+
+.demo-status {
+  padding: 0.45rem 0.72rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.demo-status.is-ready {
+  border-color: rgba(114, 226, 169, 0.22);
+  color: var(--accent-emerald);
+}
+
+.demo-error {
+  border: 1px solid rgba(242, 106, 115, 0.18);
+  border-radius: 1rem;
+  background: rgba(84, 26, 35, 0.34);
+  padding: 0.95rem 1rem;
+  font-size: 0.92rem;
+  color: var(--accent-red);
+}
+
 @media (max-width: 768px) {
   .section-shell {
-    padding-top: 4.5rem;
-    padding-bottom: 4.5rem;
+    padding-top: 4rem;
+    padding-bottom: 4rem;
   }
 
   .surface-card {
     padding: 1.15rem;
+  }
+
+  .demo-toolbar {
+    padding: 1rem;
   }
 }

@@ -29,6 +29,28 @@ _document_registry: dict[str, dict[str, Any]] = {}
 _hash_registry: dict[str, str] = {}
 
 
+def _sanitize_metadata_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return float(value)
+    return str(value)
+
+
+def _sanitize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    sanitized: dict[str, Any] = {}
+    for key, value in metadata.items():
+        normalized = _sanitize_metadata_value(value)
+        if normalized is None:
+            continue
+        sanitized[str(key)] = normalized
+    return sanitized
+
+
 class EmbeddingService:
     def __init__(self) -> None:
         self._function = DefaultEmbeddingFunction()
@@ -133,7 +155,7 @@ def add_documents(
 
     ids = [chunk.chunk_id for chunk in chunks]
     documents = [chunk.text for chunk in chunks]
-    metadatas = [chunk.metadata for chunk in chunks]
+    metadatas = [_sanitize_metadata(chunk.metadata) for chunk in chunks]
     embedded = embeddings or embed_texts(documents)
 
     for start in range(0, len(chunks), batch_size):

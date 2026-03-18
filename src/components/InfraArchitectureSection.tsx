@@ -63,7 +63,7 @@ export default function InfraArchitectureSection() {
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-[1.4rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
               <p className="text-sm font-semibold text-[var(--text-primary)]">Presentation Tier</p>
-              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">Next.js UI, recruiter CTA, live demo, execution trace panels</p>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">Next.js UI, live demo, execution trace panels, and system documentation</p>
             </div>
             <div className="rounded-[1.4rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
               <p className="text-sm font-semibold text-[var(--text-primary)]">Runtime Tier</p>
