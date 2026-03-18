@@ -118,6 +118,7 @@ const tabMeta: Record<ResultTab, { label: string; icon: ComponentType<{ size?: n
 };
 
 const formatMs = (value?: number | null) => (typeof value === "number" ? `${Math.round(value)}ms` : "pending");
+const trimDetail = (value: string, max = 88) => (value.length > max ? `${value.slice(0, max)}...` : value);
 
 export default function InteractiveDemo() {
   const [activeTab, setActiveTab] = useState<ResultTab>("output");
@@ -270,7 +271,7 @@ export default function InteractiveDemo() {
         <div className="grid gap-6 border-b border-[var(--border-muted)] px-5 py-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              {prompts.map((prompt) => (
+              {prompts.slice(0, 2).map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
@@ -287,7 +288,7 @@ export default function InteractiveDemo() {
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                rows={4}
+                rows={3}
                 className="demo-textarea mt-2"
               />
             </label>
@@ -297,7 +298,7 @@ export default function InteractiveDemo() {
               <textarea
                 value={inlineText}
                 onChange={(event) => setInlineText(event.target.value)}
-                rows={4}
+                rows={3}
                 placeholder="Paste notes or reference text to compare against the uploaded file."
                 className="demo-textarea mt-2"
               />
@@ -397,7 +398,7 @@ export default function InteractiveDemo() {
                     <span className="font-mono text-[0.8rem] text-[var(--text-primary)]">{stage.label}</span>
                     <span className="trace-ms">{formatMs(stage.timing_ms)}</span>
                   </div>
-                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{stage.detail}</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{trimDetail(stage.detail, 64)}</p>
                 </div>
               </div>
             ))}
@@ -463,47 +464,26 @@ export default function InteractiveDemo() {
                             </div>
                             <span className="demo-pill">{result.strict_mode ? "strict mode" : "general mode"}</span>
                           </div>
-                          <div className="prose-panel mt-4 whitespace-pre-wrap">{result.structured_output.answer}</div>
+                          <div className="prose-panel result-scroll mt-4 whitespace-pre-wrap">{result.structured_output.answer}</div>
                         </div>
 
-                        <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
-                          <div className="rounded-[1.1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
-                            <p className="demo-subtitle">Supporting excerpts</p>
-                            <div className="mt-3 space-y-3">
-                              {result.structured_output.supporting_excerpts.length ? (
-                                result.structured_output.supporting_excerpts.map((excerpt) => (
-                                  <div key={`${excerpt.citation}-${excerpt.source}`} className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-strong)] p-3.5">
-                                    <div className="flex items-center justify-between gap-4">
-                                      <span className="font-mono text-xs text-[var(--accent-cyan)]">{excerpt.citation}</span>
-                                      <span className="text-xs text-[var(--text-dim)]">{excerpt.section_title || excerpt.source}</span>
-                                    </div>
-                                    <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">{excerpt.excerpt}</p>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-sm text-[var(--text-secondary)]">No supporting excerpts returned.</p>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="rounded-[1.1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
-                            <p className="demo-subtitle">Sources</p>
-                            <div className="mt-3 space-y-3">
-                              {result.structured_output.sources.length ? (
-                                result.structured_output.sources.map((source, index) => (
-                                  <div key={`${source.document}-${index}`} className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-strong)] p-3.5">
-                                    <p className="text-sm font-medium text-[var(--text-primary)]">{source.document}</p>
-                                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                                      {source.section_title || "Section metadata unavailable"}
-                                      {source.page_number ? ` • page ${source.page_number}` : ""}
-                                      {source.slide_number ? ` • slide ${source.slide_number}` : ""}
-                                    </p>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-sm text-[var(--text-secondary)]">No sources returned.</p>
-                              )}
-                            </div>
+                        <div className="rounded-[1.1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
+                          <p className="demo-subtitle">Sources</p>
+                          <div className="mt-3 grid gap-3 md:grid-cols-2">
+                            {result.structured_output.sources.length ? (
+                              result.structured_output.sources.slice(0, 2).map((source, index) => (
+                                <div key={`${source.document}-${index}`} className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-strong)] p-3.5">
+                                  <p className="text-sm font-medium text-[var(--text-primary)]">{source.document}</p>
+                                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                                    {source.section_title || "Section"}
+                                    {source.page_number ? ` • page ${source.page_number}` : ""}
+                                    {source.slide_number ? ` • slide ${source.slide_number}` : ""}
+                                  </p>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-sm text-[var(--text-secondary)]">No sources returned.</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -518,27 +498,10 @@ export default function InteractiveDemo() {
                               <div className="flex items-center justify-between gap-4">
                                 <div>
                                   <p className="font-mono text-[0.8rem] text-[var(--text-primary)]">{step.label}</p>
-                                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{step.description}</p>
+                                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{trimDetail(step.description, 72)}</p>
                                 </div>
                                 <span className="trace-ms">{formatMs(step.timing_ms)}</span>
                               </div>
-                              {(step.input || step.output) && (
-                                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                  <div className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-3">
-                                    <p className="demo-subtitle">Input</p>
-                                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{step.input || "None"}</p>
-                                  </div>
-                                  <div className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-3">
-                                    <p className="demo-subtitle">Output</p>
-                                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{step.output || "None"}</p>
-                                  </div>
-                                </div>
-                              )}
-                              {step.logs?.length ? (
-                                <div className="mt-3 rounded-[1rem] border border-[var(--border-muted)] bg-[rgba(8,13,20,0.94)] p-3 font-mono text-xs leading-6 text-[var(--text-dim)]">
-                                  {step.logs.join(" • ")}
-                                </div>
-                              ) : null}
                             </div>
                           </div>
                         ))}
@@ -548,7 +511,7 @@ export default function InteractiveDemo() {
                     {activeTab === "context" ? (
                       <div className="space-y-3">
                         {result.context.length ? (
-                          result.context.map((item, index) => (
+                          result.context.slice(0, 3).map((item, index) => (
                             <div key={`${item.source}-${index}`} className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
                               <div className="flex items-center justify-between gap-4">
                                 <div>
@@ -561,7 +524,7 @@ export default function InteractiveDemo() {
                                 </div>
                                 <span className="demo-pill">score {item.relevance.toFixed(2)}</span>
                               </div>
-                              <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">{item.text}</p>
+                              <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">{trimDetail(item.text, 220)}</p>
                             </div>
                           ))
                         ) : (

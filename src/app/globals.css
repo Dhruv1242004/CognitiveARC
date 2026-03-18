@@ -89,7 +89,7 @@ body::before {
   position: relative;
   margin: 0 auto;
   max-width: 82rem;
-  padding: 5rem 1.5rem;
+  padding: 4.4rem 1.5rem;
 }
 
 .section-header {
@@ -124,9 +124,9 @@ body::before {
 
 .section-copy {
   margin: 1rem 0 0;
-  max-width: 38rem;
-  font-size: 1rem;
-  line-height: 1.8;
+  max-width: 34rem;
+  font-size: 0.96rem;
+  line-height: 1.7;
   color: var(--text-secondary);
 }
 
@@ -366,7 +366,7 @@ body::before {
 
 .demo-heading {
   margin-top: 0.45rem;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -384,9 +384,9 @@ body::before {
   border: 1px solid var(--border-muted);
   border-radius: 1rem;
   background: rgba(9, 14, 23, 0.9);
-  padding: 0.95rem 1rem;
-  font-size: 0.95rem;
-  line-height: 1.7;
+  padding: 0.85rem 0.95rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
   color: var(--text-primary);
   outline: none;
 }
@@ -416,8 +416,8 @@ body::before {
 
 .demo-chip {
   background: rgba(10, 16, 26, 0.72);
-  padding: 0.55rem 0.85rem;
-  font-size: 0.82rem;
+  padding: 0.5rem 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
@@ -444,6 +444,12 @@ body::before {
   border-color: var(--border-strong);
   background: rgba(23, 42, 64, 0.72);
   color: var(--text-primary);
+}
+
+.result-scroll {
+  max-height: 16rem;
+  overflow-y: auto;
+  padding-right: 0.35rem;
 }
 
 .demo-status {

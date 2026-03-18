@@ -7,32 +7,32 @@ const infraNodes = [
   {
     title: "Next.js Frontend",
     icon: Globe,
-    detail: "Recruiter-facing interface, execution visibility panels, live demo controls, and result tabs.",
+    detail: "UI, demo controls, and result views.",
   },
   {
     title: "FastAPI Backend",
     icon: ServerCog,
-    detail: "Async ingestion, query routing, startup warmup, health checks, and background indexing jobs.",
+    detail: "Async ingestion, query routing, and warm startup.",
   },
   {
     title: "Vector Store",
     icon: Database,
-    detail: "Chroma-backed chunk storage with document metadata, section filters, and hybrid retrieval inputs.",
+    detail: "Chunk storage with metadata and hybrid retrieval.",
   },
   {
     title: "Containerization",
     icon: Box,
-    detail: "Frontend and backend are structured to run as isolated services with a clean deployment boundary.",
+    detail: "Frontend and backend as isolated services.",
   },
   {
     title: "CI/CD Ready",
     icon: GitBranchPlus,
-    detail: "Clear service separation supports build pipelines, health probes, and environment-based promotion.",
+    detail: "Clear service boundaries for build and release pipelines.",
   },
   {
     title: "Cloud Deployment Path",
     icon: Cloud,
-    detail: "Designed for Vercel-style frontend hosting, API hosting, persistent vector storage, and managed secrets.",
+    detail: "Frontend hosting, API hosting, storage, and secrets.",
   },
 ];
 
@@ -41,10 +41,9 @@ export default function InfraArchitectureSection() {
     <section id="infra" className="section-shell">
       <div className="section-header">
         <span className="section-kicker">Deployment / Infra</span>
-        <h2 className="section-title-lg">A deployable path, not a local-only prototype</h2>
+        <h2 className="section-title-lg">Deployment path</h2>
         <p className="section-copy">
-          The infra section makes the project read like a shipped system: service boundaries are clear, containerization is
-          accounted for, and the runtime has a credible cloud deployment story.
+          Clear service boundaries and a practical cloud-ready path.
         </p>
       </div>
 
@@ -63,15 +62,15 @@ export default function InfraArchitectureSection() {
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-[1.4rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
               <p className="text-sm font-semibold text-[var(--text-primary)]">Presentation Tier</p>
-              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">Next.js UI, live demo, execution trace panels, and system documentation</p>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">Next.js UI and demo surface</p>
             </div>
             <div className="rounded-[1.4rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
               <p className="text-sm font-semibold text-[var(--text-primary)]">Runtime Tier</p>
-              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">FastAPI orchestration, ingestion jobs, retrieval pipeline, strict response mode</p>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">FastAPI orchestration and retrieval pipeline</p>
             </div>
             <div className="rounded-[1.4rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
               <p className="text-sm font-semibold text-[var(--text-primary)]">State Tier</p>
-              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">Vector persistence, metadata filters, document hashes, warm service state</p>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">Vector storage, metadata, and document hashes</p>
             </div>
           </div>
 

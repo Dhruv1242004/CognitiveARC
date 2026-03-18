@@ -7,37 +7,37 @@ const traceSteps = [
     key: "planner",
     label: "Planner",
     timing: "28ms",
-    description: "Classifies the request, turns on retrieval when document context exists, and resolves the execution path.",
+    description: "Classifies the request and resolves the path.",
   },
   {
     key: "retriever",
     label: "Retriever",
     timing: "84ms",
-    description: "Runs hybrid semantic and keyword search against indexed chunks, then reranks by grounded relevance.",
+    description: "Runs hybrid search and reranks the result.",
   },
   {
     key: "memory",
     label: "Memory",
     timing: "7ms",
-    description: "Loads short-term session history so follow-up questions stay consistent without bloating the prompt.",
+    description: "Loads short-term session context.",
   },
   {
     key: "tool-router",
     label: "Tool Router",
     timing: "12ms",
-    description: "Schedules deterministic steps like vector search and response formatting instead of relying on opaque generation.",
+    description: "Schedules deterministic tool steps.",
   },
   {
     key: "generator",
     label: "Response Generator",
     timing: "316ms",
-    description: "Builds the answer with citations and falls back to \"not found\" when strict retrieval lacks support.",
+    description: "Builds the grounded answer with citations.",
   },
   {
     key: "formatter",
     label: "Output Formatter",
     timing: "11ms",
-    description: "Packages the answer, excerpts, sources, and timings for the final UI output.",
+    description: "Packages sources and timings for the UI.",
   },
 ];
 
