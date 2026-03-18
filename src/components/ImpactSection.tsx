@@ -2,20 +2,16 @@
 
 const impactPoints = [
   {
-    title: "Grounded response generation",
-    description: "Hybrid retrieval and strict fallback behavior reduce the chance of generic answers when document support is missing.",
+    title: "Grounded responses",
+    description: "Hybrid retrieval and strict fallback behavior reduce generic answers.",
   },
   {
     title: "Modular orchestration",
-    description: "Planner, retriever, memory, tool router, and formatter are separated so the system can evolve without rewriting the whole runtime.",
+    description: "Planner, retriever, memory, and formatter stay independently evolvable.",
   },
   {
     title: "Execution visibility",
-    description: "Trace steps, timings, and source-linked output make the agent explainable for demos, debugging, and recruiter review.",
-  },
-  {
-    title: "Extensible deployment path",
-    description: "Warm startup, container boundaries, health checks, and metadata-aware retrieval move the project closer to production behavior.",
+    description: "Trace steps and source-linked output make the runtime easier to trust and debug.",
   },
 ];
 
@@ -24,14 +20,13 @@ export default function ImpactSection() {
     <section className="section-shell">
       <div className="section-header">
         <span className="section-kicker">Why It Matters</span>
-        <h2 className="section-title-lg">Technical choices that matter for real AI system behavior</h2>
+        <h2 className="section-title-lg">Why this project matters</h2>
         <p className="section-copy">
-          CognitiveARC is meaningful because it pushes beyond a single prompt-response surface and exposes the operational
-          decisions that make retrieval-backed agents more reliable and more explainable.
+          CognitiveARC goes beyond a prompt box by making the retrieval and execution path visible.
         </p>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-5 md:grid-cols-3">
         {impactPoints.map((point) => (
           <div key={point.title} className="surface-card">
             <h3 className="text-lg font-semibold text-[var(--text-primary)]">{point.title}</h3>

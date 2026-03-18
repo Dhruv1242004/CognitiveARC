@@ -8,42 +8,42 @@ const layers = [
     title: "Client Layer",
     icon: PanelTop,
     accent: "var(--accent-cyan)",
-    description: "Recruiter-facing systems UI with upload controls, indexed-state gating, trace visibility, and structured result views.",
+    description: "UI for upload, query, trace, and structured output.",
     modules: ["Next.js app shell", "Execution console", "Upload + query state", "Result tabs"],
   },
   {
     title: "API Layer",
     icon: Blocks,
     accent: "var(--accent-blue)",
-    description: "Async FastAPI endpoints coordinate warm startup, ingestion jobs, health checks, and query execution.",
+    description: "Async endpoints for upload, query, warm startup, and health.",
     modules: ["Upload API", "Query API", "Warm health endpoint", "Background task orchestration"],
   },
   {
     title: "Orchestration Layer",
     icon: BrainCircuit,
     accent: "var(--accent-indigo)",
-    description: "Planner, memory, tool router, and response composer run as separate stages with explicit runtime signals.",
+    description: "Planner, memory, tool router, and formatter run as separate stages.",
     modules: ["Intent planner", "Session memory", "Tool router", "Strict response formatter"],
   },
   {
     title: "Retrieval / Memory Layer",
     icon: Database,
     accent: "var(--accent-emerald)",
-    description: "Structure-aware chunks are embedded once, indexed with metadata, and retrieved through hybrid reranking.",
+    description: "Structure-aware chunks, metadata, and hybrid retrieval.",
     modules: ["Hybrid retrieval", "Section metadata", "Short-term memory", "Chunk citations"],
   },
   {
     title: "Tooling Layer",
     icon: Wrench,
     accent: "var(--accent-amber)",
-    description: "Tool invocations remain inspectable so the agent shows routed execution, not opaque text generation.",
+    description: "Inspectable tools instead of opaque text generation.",
     modules: ["Vector search", "Text analysis", "Response composition", "Future tool adapters"],
   },
   {
     title: "Output Layer",
     icon: FileOutput,
     accent: "var(--accent-violet)",
-    description: "Final answers are packaged with excerpts, source metadata, and per-stage timings for explainable output assembly.",
+    description: "Answers packaged with excerpts, sources, and timings.",
     modules: ["Structured answer", "Supporting excerpts", "Source references", "Timing metrics"],
   },
 ];
@@ -53,10 +53,9 @@ export default function Architecture() {
     <section id="architecture" className="section-shell">
       <div className="section-header">
         <span className="section-kicker">Architecture</span>
-        <h2 className="section-title-lg">Layered system map for an observable agent runtime</h2>
+        <h2 className="section-title-lg">Layered system map</h2>
         <p className="section-copy">
-          The site now shows CognitiveARC as an orchestration product: upload and retrieval are distinct from planning,
-          tool execution, and grounded response assembly.
+          Upload, orchestration, retrieval, and output are separated into clear runtime layers.
         </p>
       </div>
 

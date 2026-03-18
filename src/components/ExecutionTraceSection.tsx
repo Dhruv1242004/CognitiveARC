@@ -47,10 +47,9 @@ export default function ExecutionTraceSection() {
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <div className="section-header">
           <span className="section-kicker">Execution Trace</span>
-          <h2 className="section-title-lg">Visible runtime steps, not hidden agent magic</h2>
+          <h2 className="section-title-lg">Visible runtime steps</h2>
           <p className="section-copy">
-            The trace view exists to make CognitiveARC feel like a real system. You can see where planning stops, where
-            retrieval starts, and how the final output is assembled.
+            Planning, retrieval, memory, and output formatting stay visible instead of hidden behind one response box.
           </p>
         </div>
 

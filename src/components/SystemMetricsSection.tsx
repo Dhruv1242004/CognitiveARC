@@ -18,10 +18,9 @@ export default function SystemMetricsSection() {
     <section id="metrics" className="section-shell">
       <div className="section-header">
         <span className="section-kicker">Engineering Metrics</span>
-        <h2 className="section-title-lg">Runtime signals that read like engineering evidence</h2>
+        <h2 className="section-title-lg">Engineering metrics</h2>
         <p className="section-copy">
-          These metrics are intentionally modest and system-focused. They reinforce architecture depth, retrieval quality,
-          and deployment readiness without drifting into product-marketing fluff.
+          Runtime signals focused on retrieval, pipeline depth, and deployment readiness.
         </p>
       </div>
 

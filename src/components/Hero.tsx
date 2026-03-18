@@ -8,16 +8,13 @@ const credibilityChips = [
   "RAG + Memory",
   "Tool Orchestration",
   "FastAPI + Docker",
-  "Observability Ready",
 ];
 
 const miniTrace = [
-  { label: "user.query", status: "completed", detail: "Targeted product due diligence request", ms: "0ms" },
-  { label: "planner", status: "completed", detail: "Classified as retrieval-backed QA", ms: "28ms" },
-  { label: "retriever", status: "completed", detail: "6 ranked chunks across 2 sections", ms: "84ms" },
-  { label: "memory", status: "completed", detail: "Loaded prior session context", ms: "7ms" },
-  { label: "tool_router", status: "completed", detail: "Scheduled vector search + formatter", ms: "12ms" },
-  { label: "generator", status: "running", detail: "Assembling grounded answer with citations", ms: "live" },
+  { label: "planner", status: "completed", detail: "retrieval-backed task", ms: "28ms" },
+  { label: "retriever", status: "completed", detail: "6 ranked chunks", ms: "84ms" },
+  { label: "memory", status: "completed", detail: "session context loaded", ms: "7ms" },
+  { label: "generator", status: "running", detail: "assembling grounded answer", ms: "live" },
 ];
 
 export default function Hero() {
@@ -33,11 +30,10 @@ export default function Hero() {
         >
           <div className="eyebrow-chip">Autonomous AI Agent Platform</div>
           <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-[-0.04em] text-[var(--text-primary)] sm:text-5xl lg:text-[4.35rem] lg:leading-[1.02]">
-            CognitiveARC is a modular agent orchestration system built to show how real AI workflows execute.
+            CognitiveARC turns planning, retrieval, memory, and tools into a visible agent runtime.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--text-secondary)] sm:text-lg">
-            Planning, retrieval, memory lookup, tool routing, grounded generation, and structured output are separated into
-            observable runtime stages so recruiters can see backend depth, not just a polished wrapper.
+            Built as an architecture-first AI product with grounded retrieval, execution trace visibility, and a deployable full-stack backend.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
@@ -108,7 +104,7 @@ export default function Hero() {
                   <span>session 7af2b1</span>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-[var(--text-primary)]">
-                  Compare the uploaded board deck against prior planning notes and extract the milestones with direct evidence.
+                  Extract milestones and risks from the uploaded planning materials.
                 </p>
               </div>
 
@@ -141,8 +137,7 @@ export default function Hero() {
                   </span>
                 </div>
                 <p className="mt-3 text-sm leading-7 text-[var(--text-primary)]">
-                  Milestones were validated against the slide deck timeline and memo history, with cited evidence from the
-                  “Q3 Delivery Plan” and “Risks” sections.
+                  Milestones validated against indexed sections with cited evidence.
                 </p>
               </div>
             </div>

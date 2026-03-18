@@ -10,9 +10,9 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <InteractiveDemo />
       <Architecture />
       <ExecutionTraceSection />
+      <InteractiveDemo />
       <SystemMetricsSection />
       <InfraArchitectureSection />
       <ImpactSection />

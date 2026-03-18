@@ -8,12 +8,10 @@ import {
   CheckCircle2,
   Clock3,
   Database,
-  FileText,
   Loader2,
   MessageSquareText,
   Radar,
   ShieldCheck,
-  Sparkles,
   UploadCloud,
   Wrench,
 } from "lucide-react";
@@ -102,7 +100,7 @@ interface PipelineResult {
 const prompts = [
   "What milestones are explicitly mentioned in this document?",
   "Which section discusses risks or blockers?",
-  "Extract action items with supporting evidence.",
+  "Extract action items with evidence.",
 ];
 
 const defaultUploadStages: UploadStage[] = [
@@ -248,10 +246,9 @@ export default function InteractiveDemo() {
     <section id="demo" className="section-shell">
       <div className="section-header">
         <span className="section-kicker">Live Demo</span>
-        <h2 className="section-title-lg">A single workbench for upload, query, and output</h2>
+        <h2 className="section-title-lg">Upload, query, inspect</h2>
         <p className="section-copy">
-          The document and query controls now live in the same visible workspace, so the user never loses the next action
-          while a file is indexing or after a run completes.
+          One workspace for the document, the question, and the result.
         </p>
       </div>
 
@@ -259,7 +256,7 @@ export default function InteractiveDemo() {
         <div className="demo-toolbar">
           <div>
             <p className="demo-label">Query Workspace</p>
-            <h3 className="demo-heading">Upload a document, ask a targeted question, inspect the result</h3>
+            <h3 className="demo-heading">Upload a document and run a targeted query</h3>
           </div>
           <div className="flex flex-wrap gap-2">
             {runtimeSummary.map((item) => (
@@ -313,7 +310,7 @@ export default function InteractiveDemo() {
                 <div>
                   <p className="demo-subtitle">Document</p>
                   <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                    Upload a file to test the indexing path. The query box stays available while the document processes.
+                    Upload a file and query it as soon as indexing finishes.
                   </p>
                 </div>
                 <button type="button" onClick={() => fileInputRef.current?.click()} className="btn btn-secondary">
@@ -404,16 +401,6 @@ export default function InteractiveDemo() {
                 </div>
               </div>
             ))}
-
-            <div className="rounded-[1.15rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] px-4 py-3.5">
-              <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                <Sparkles size={15} className="text-[var(--accent-cyan)]" />
-                What this panel is for
-              </div>
-              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                Parsing, chunking, embedding, and indexing are separated so the runtime feels inspectable rather than opaque.
-              </p>
-            </div>
           </div>
 
           <div className="space-y-4">
@@ -455,7 +442,7 @@ export default function InteractiveDemo() {
                     </div>
                     <h4 className="mt-5 text-2xl font-semibold text-[var(--text-primary)]">No run executed yet</h4>
                     <p className="mt-3 max-w-md text-sm leading-7 text-[var(--text-secondary)]">
-                      Upload a file, ask a question, and the result panel will show the answer, trace, retrieved context, and tool events.
+                      Upload a file and run a query to populate this panel.
                     </p>
                   </motion.div>
                 ) : (
@@ -607,36 +594,6 @@ export default function InteractiveDemo() {
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                  <ShieldCheck size={15} className="text-[var(--accent-emerald)]" />
-                  Guardrail
-                </div>
-                <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                  Strict mode prevents generic answers when the upload does not support the question.
-                </p>
-              </div>
-              <div className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                  <FileText size={15} className="text-[var(--accent-cyan)]" />
-                  Explainability
-                </div>
-                <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                  Trace, context, and tool tabs show how the answer was assembled.
-                </p>
-              </div>
-              <div className="rounded-[1rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] p-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-[var(--text-primary)]">
-                  <Database size={15} className="text-[var(--accent-amber)]" />
-                  Retrieval
-                </div>
-                <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
-                  Section metadata and hybrid ranking help targeted questions stay precise.
-                </p>
-              </div>
             </div>
           </div>
         </div>
