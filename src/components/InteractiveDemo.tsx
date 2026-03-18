@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock3,
   Database,
+  KeyRound,
   Loader2,
   MessageSquareText,
   Radar,
@@ -39,6 +40,15 @@ interface UploadResult {
   document_type?: string | null;
   category?: string | null;
   title?: string | null;
+  document_profile?: {
+    category?: string;
+    inferred_intent?: string;
+    primary_subject?: string;
+    top_headings?: string[];
+    focus_terms?: string[];
+    named_entities?: string[];
+    prompt_context?: string[];
+  } | null;
   suggested_prompts?: string[];
 }
 
@@ -123,6 +133,8 @@ const tabMeta: Record<ResultTab, { label: string; icon: ComponentType<{ size?: n
 
 const formatMs = (value?: number | null) => (typeof value === "number" ? `${Math.round(value)}ms` : "pending");
 const trimDetail = (value: string, max = 88) => (value.length > max ? `${value.slice(0, max)}...` : value);
+const GROQ_KEY_STORAGE = "cognitivearc.groq_api_key";
+const GROQ_MODE_STORAGE = "cognitivearc.groq_provider_mode";
 
 export default function InteractiveDemo() {
   const [activeTab, setActiveTab] = useState<ResultTab>("output");
@@ -136,8 +148,28 @@ export default function InteractiveDemo() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadedDoc, setUploadedDoc] = useState<UploadResult | null>(null);
+  const [providerMode, setProviderMode] = useState<"shared" | "personal">("shared");
+  const [apiKeyInput, setApiKeyInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resolvedApiKey = apiKeyInput.trim();
+
+  useEffect(() => {
+    const storedKey = window.localStorage.getItem(GROQ_KEY_STORAGE) || "";
+    const storedMode = window.localStorage.getItem(GROQ_MODE_STORAGE);
+    if (storedKey) setApiKeyInput(storedKey);
+    if (storedMode === "shared" || storedMode === "personal") {
+      setProviderMode(storedMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(GROQ_KEY_STORAGE, apiKeyInput);
+  }, [apiKeyInput]);
+
+  useEffect(() => {
+    window.localStorage.setItem(GROQ_MODE_STORAGE, providerMode);
+  }, [providerMode]);
 
   const uploadDocument = useCallback(async (file: File) => {
     setUploading(true);
@@ -145,9 +177,16 @@ export default function InteractiveDemo() {
     setError(null);
 
     try {
+      if (providerMode === "personal" && !resolvedApiKey) {
+        throw new Error("Enter a Groq API key or switch back to the shared pool.");
+      }
       const formData = new FormData();
       formData.append("file", file);
-      const response = await fetch("/api/upload", { method: "POST", body: formData });
+      const headers: HeadersInit = {};
+      if (providerMode === "personal" && resolvedApiKey) {
+        headers["x-groq-api-key"] = resolvedApiKey;
+      }
+      const response = await fetch("/api/upload", { method: "POST", body: formData, headers });
       const payload = await response.json();
       if (!response.ok) {
         throw new Error(payload.detail || payload.message || "Upload failed");
@@ -158,7 +197,7 @@ export default function InteractiveDemo() {
       setUploadError(err instanceof Error ? err.message : "Upload failed");
       setUploading(false);
     }
-  }, []);
+  }, [providerMode, resolvedApiKey]);
 
   useEffect(() => {
     if (!uploadedDoc || uploadedDoc.status !== "processing") {
@@ -206,15 +245,23 @@ export default function InteractiveDemo() {
       setError("Document is still indexing. Wait for ready state before querying it.");
       return;
     }
+    if (providerMode === "personal" && !resolvedApiKey) {
+      setError("Enter a Groq API key or switch back to the shared pool.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
     setActiveTab("output");
 
     try {
+      const headers: HeadersInit = { "Content-Type": "application/json" };
+      if (providerMode === "personal" && resolvedApiKey) {
+        headers["x-groq-api-key"] = resolvedApiKey;
+      }
       const response = await fetch("/api/query", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           query: input.trim(),
           session_id: sessionId ?? undefined,
@@ -234,12 +281,14 @@ export default function InteractiveDemo() {
     } finally {
       setLoading(false);
     }
-  }, [inlineText, input, loading, sessionId, strictMode, uploadedDoc]);
+  }, [inlineText, input, loading, providerMode, resolvedApiKey, sessionId, strictMode, uploadedDoc]);
 
   const uploadReady = uploadedDoc?.status === "completed";
   const promptSuggestions = uploadedDoc?.suggested_prompts?.length
     ? uploadedDoc.suggested_prompts
     : fallbackPrompts;
+  const promptSourceLabel = uploadedDoc?.document_profile?.primary_subject || uploadedDoc?.title || "uploaded content";
+  const providerLabel = providerMode === "personal" && resolvedApiKey ? "personal key" : "shared pool";
   const runtimeSummary = useMemo(() => {
     if (!result) return [];
     return [
@@ -284,6 +333,11 @@ export default function InteractiveDemo() {
         <div className="grid gap-6 border-b border-[var(--border-muted)] px-5 py-5 sm:px-6 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
+              {uploadReady ? (
+                <span className="demo-subtitle mr-1 inline-flex items-center self-center text-[0.7rem]">
+                  Suggested from {promptSourceLabel}
+                </span>
+              ) : null}
               {promptSuggestions.slice(0, 3).map((prompt) => (
                 <button
                   key={prompt}
@@ -341,6 +395,60 @@ export default function InteractiveDemo() {
                     event.target.value = "";
                   }}
                 />
+              </div>
+
+              <div className="demo-provider-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="demo-subtitle">Inference Access</p>
+                    <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
+                      Use the shared project pool or route requests through your own Groq quota.
+                    </p>
+                  </div>
+                  <span className="demo-provider-badge">
+                    <KeyRound size={14} />
+                    {providerLabel}
+                  </span>
+                </div>
+
+                <div className="demo-provider-toggle">
+                  <button
+                    type="button"
+                    className={`demo-segment ${providerMode === "shared" ? "is-active" : ""}`}
+                    onClick={() => setProviderMode("shared")}
+                  >
+                    Shared pool
+                  </button>
+                  <button
+                    type="button"
+                    className={`demo-segment ${providerMode === "personal" ? "is-active" : ""}`}
+                    onClick={() => setProviderMode("personal")}
+                  >
+                    Personal key
+                  </button>
+                </div>
+
+                {providerMode === "personal" ? (
+                  <label className="block">
+                    <span className="demo-subtitle">Groq API key</span>
+                    <input
+                      type="password"
+                      value={apiKeyInput}
+                      onChange={(event) => setApiKeyInput(event.target.value)}
+                      placeholder="gsk_..."
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="demo-input mt-2"
+                    />
+                    <p className="mt-2 text-xs leading-6 text-[var(--text-dim)]">
+                      Stored only in this browser and attached only to your upload and query requests.
+                    </p>
+                  </label>
+                ) : (
+                  <p className="mt-3 text-xs leading-6 text-[var(--text-dim)]">
+                    Shared mode uses CognitiveARC&apos;s project key with rate limits and fallback messaging.
+                  </p>
+                )}
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">

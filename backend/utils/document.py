@@ -4,6 +4,7 @@ Document ingestion utilities with format-aware parsing and semantic structure re
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 import io
 import re
@@ -46,6 +47,144 @@ class ParsedDocument:
         return "\n\n".join(segment.text for segment in self.segments if segment.text.strip())
 
 
+@dataclass
+class DocumentProfile:
+    category: str
+    inferred_intent: str
+    primary_subject: str
+    top_headings: list[str] = field(default_factory=list)
+    focus_terms: list[str] = field(default_factory=list)
+    named_entities: list[str] = field(default_factory=list)
+    prompt_context: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict:
+        return {
+            "category": self.category,
+            "inferred_intent": self.inferred_intent,
+            "primary_subject": self.primary_subject,
+            "top_headings": self.top_headings,
+            "focus_terms": self.focus_terms,
+            "named_entities": self.named_entities,
+            "prompt_context": self.prompt_context,
+        }
+
+
+STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "in",
+    "into",
+    "is",
+    "it",
+    "of",
+    "on",
+    "or",
+    "that",
+    "the",
+    "this",
+    "to",
+    "with",
+    "using",
+    "use",
+    "via",
+    "your",
+    "their",
+    "these",
+    "those",
+    "data",
+    "document",
+    "page",
+    "slide",
+    "section",
+}
+
+
+def _dedupe_preserve(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        key = value.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        ordered.append(value.strip())
+    return ordered
+
+
+def _extract_heading_candidates(parsed: ParsedDocument) -> list[str]:
+    headings = [
+        segment.section_title or segment.text
+        for segment in parsed.segments
+        if segment.kind in {"heading", "slide_title"} or (segment.level is not None and segment.level <= 1)
+    ]
+    if not headings:
+        headings = [segment.section_title or "" for segment in parsed.segments[:8]]
+    cleaned = [normalize_text(item) for item in headings if item]
+    return _dedupe_preserve(cleaned)[:4]
+
+
+def _extract_focus_terms(parsed: ParsedDocument) -> list[str]:
+    text = normalize_text(parsed.full_text[:12000]).lower()
+    terms = re.findall(r"\b[a-z][a-z0-9\-\+]{2,}\b", text)
+    counts = Counter(term for term in terms if term not in STOPWORDS and not term.isdigit())
+    ranked = [term for term, _ in counts.most_common(8)]
+    return ranked[:5]
+
+
+def _extract_named_entities(parsed: ParsedDocument) -> list[str]:
+    candidates: list[str] = [parsed.title]
+    candidates.extend(_extract_heading_candidates(parsed))
+
+    for segment in parsed.segments[:10]:
+        sample = normalize_text(segment.text).replace("\n", " ")
+        if not sample:
+            continue
+        sentence = sample.split(". ", 1)[0][:140]
+        candidates.extend(
+            re.findall(
+                r"\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z0-9&\-]+){0,2}|[A-Z]{2,}(?:\s+[A-Z]{2,}){0,1})\b",
+                sentence,
+            )
+        )
+
+    filtered = []
+    for item in candidates:
+        value = normalize_text(item).replace("\n", " ")
+        if not (2 < len(value) < 48):
+            continue
+        if value.lower() in {"page", "section", "slide", "table", "experience", "projects", "education"}:
+            continue
+        filtered.append(value)
+    return _dedupe_preserve(filtered)[:4]
+
+
+def _build_prompt_context(parsed: ParsedDocument, headings: list[str], focus_terms: list[str]) -> list[str]:
+    context: list[str] = []
+    if headings:
+        context.append(headings[0])
+    first_substantive = next(
+        (
+            normalize_text(segment.text)
+            for segment in parsed.segments
+            if len(normalize_text(segment.text)) > 40 and segment.kind not in {"heading", "slide_title"}
+        ),
+        "",
+    )
+    if first_substantive:
+        context.append(first_substantive[:120])
+    if focus_terms:
+        context.append(", ".join(focus_terms[:3]))
+    return _dedupe_preserve(context)[:3]
+
+
 def infer_document_category(parsed: ParsedDocument) -> str:
     haystack = f"{parsed.filename} {parsed.title} {parsed.full_text[:5000]}".lower()
     if any(token in haystack for token in ["resume", "curriculum vitae", "experience", "education", "skills"]):
@@ -59,37 +198,84 @@ def infer_document_category(parsed: ParsedDocument) -> str:
     return "general"
 
 
-def build_suggested_prompts(parsed: ParsedDocument) -> list[str]:
+def build_document_profile(parsed: ParsedDocument) -> DocumentProfile:
     category = infer_document_category(parsed)
+    headings = _extract_heading_candidates(parsed)
+    focus_terms = _extract_focus_terms(parsed)
+    entities = _extract_named_entities(parsed)
+    prompt_context = _build_prompt_context(parsed, headings, focus_terms)
+
+    primary_subject = headings[0] if headings else (entities[0] if entities else parsed.title)
+    if category == "resume":
+        inferred_intent = "candidate evaluation"
+    elif category == "research":
+        inferred_intent = "paper analysis"
+    elif category == "project":
+        inferred_intent = "project planning review"
+    elif category == "report":
+        inferred_intent = "report synthesis"
+    else:
+        inferred_intent = "document analysis"
+
+    return DocumentProfile(
+        category=category,
+        inferred_intent=inferred_intent,
+        primary_subject=primary_subject,
+        top_headings=headings,
+        focus_terms=focus_terms,
+        named_entities=entities,
+        prompt_context=prompt_context,
+    )
+
+
+def build_suggested_prompts(parsed: ParsedDocument, profile: DocumentProfile | None = None) -> list[str]:
+    profile = profile or build_document_profile(parsed)
+    category = profile.category
+    subject = profile.primary_subject
+    heading = profile.top_headings[1] if len(profile.top_headings) > 1 else (profile.top_headings[0] if profile.top_headings else subject)
+    term_a = profile.focus_terms[0] if profile.focus_terms else "key themes"
+    term_b = profile.focus_terms[1] if len(profile.focus_terms) > 1 else "technical details"
+    parsed_title = parsed.title.lower()
+    related_entities = [
+        item
+        for item in profile.named_entities
+        if item.lower() not in {subject.lower(), parsed_title}
+    ]
+    entity_a = subject
+    entity_b = related_entities[0] if related_entities else heading
+
     if category == "resume":
         return [
-            "Summarize this candidate in 5 bullets.",
-            "What are the strongest engineering signals here?",
-            "List projects, stack, and measurable impact.",
+            f"Summarize this candidate for a backend, AI, or systems role using evidence from {entity_a}.",
+            f"What engineering signals, shipped projects, and measurable outcomes stand out across {entity_a} and {entity_b}?",
+            f"Which experience best supports backend, AI, or systems credibility, especially around {term_a} and {term_b}?",
         ]
     if category == "research":
         return [
-            "Summarize the paper's core contribution.",
-            "What methodology and results are described?",
-            "List limitations or future work mentioned.",
+            f"What is the core contribution or thesis of {entity_a}?",
+            f"Summarize the methodology, experiments, and results tied to {term_a} and {term_b}.",
+            f"What limitations, assumptions, or future work are described in {heading}?",
         ]
     if category == "project":
         return [
-            "What milestones or deliverables are defined?",
-            "What risks or blockers are mentioned?",
-            "Extract action items with evidence.",
+            f"What milestones, deliverables, or execution phases are defined for {entity_a}?",
+            f"What risks, blockers, or dependencies are called out around {term_a} and {term_b}?",
+            f"Extract action items, owners, or next steps mentioned in {heading} or related to {entity_b}.",
         ]
     if category == "report":
         return [
-            "Summarize the key findings.",
-            "What trends or risks stand out?",
-            "List the most important metrics mentioned.",
+            f"Summarize the key findings or takeaways from {entity_a}.",
+            f"What trends, risks, or recommendations are associated with {term_a} and {term_b}?",
+            f"Which metrics, comparisons, or conclusions in {heading} matter most?",
         ]
-    return [
-        "Summarize the document.",
-        "What are the key findings?",
-        "Extract the most important action items.",
+    prompts = [
+        f"Summarize the most important points in {entity_a}.",
+        f"What facts, decisions, or findings are emphasized around {term_a}?",
+        f"Which section or evidence in {heading} is most relevant to this document's purpose?",
     ]
+    if profile.named_entities:
+        prompts.append(f"What roles, organizations, or named entities like {profile.named_entities[0]} are important here?")
+    return _dedupe_preserve(prompts)[:4]
 
 
 def get_file_extension(filename: str) -> str:
@@ -334,11 +520,33 @@ def extract_text_segments(file_bytes: bytes, filename: str) -> ParsedDocument:
     title = _title_from_filename(filename)
     decoded = file_bytes.decode("utf-8", errors="replace")
     blocks = [normalize_text(block) for block in decoded.split("\n\n")]
-    segments = [
-        DocumentSegment(text=block, kind="paragraph", section_title=title)
-        for block in blocks
-        if block
-    ]
+    segments: list[DocumentSegment] = []
+    current_heading = title
+
+    for block in blocks:
+        if not block:
+            continue
+        lines = [normalize_text(line) for line in block.split("\n") if normalize_text(line)]
+        if not lines:
+            continue
+
+        first_line = lines[0]
+        remaining = "\n".join(lines[1:]).strip()
+        looks_like_heading = (
+            len(first_line) <= 64
+            and len(first_line.split()) <= 8
+            and not first_line.endswith(".")
+            and first_line.lower() != title.lower()
+        )
+
+        if looks_like_heading:
+            current_heading = first_line
+            _add_segment(segments, text=first_line, kind="heading", section_title=current_heading, level=1)
+            if remaining:
+                _add_segment(segments, text=remaining, kind="paragraph", section_title=current_heading)
+        else:
+            _add_segment(segments, text=block, kind="paragraph", section_title=current_heading)
+
     return ParsedDocument(filename=filename, file_type=get_file_extension(filename), title=title, segments=segments)
 
 

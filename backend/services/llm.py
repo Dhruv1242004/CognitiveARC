@@ -1,25 +1,53 @@
 """
-LLM Service — Groq API client (free tier, fast inference).
-Uses Llama 3.3 70B model for text generation and Groq vision for images.
+LLM service with shared-key traffic shaping and optional per-request API keys.
 """
+
+from __future__ import annotations
 
 import asyncio
 import base64
+from collections import deque
+from dataclasses import dataclass
 import io
 import os
+import threading
+import time
 
-from groq import Groq
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
-_client = None
+_shared_client = None
+_client_lock = threading.Lock()
+_custom_clients: dict[str, Groq] = {}
+_budget_lock = threading.Lock()
+_shared_request_history: deque[float] = deque()
+_requester_history: dict[str, deque[float]] = {}
 
 LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
 VISION_MODEL = os.getenv(
     "VISION_MODEL",
     "meta-llama/llama-4-scout-17b-16e-instruct",
 )
+MAX_CONCURRENT_LLM_REQUESTS = max(1, int(os.getenv("MAX_CONCURRENT_LLM_REQUESTS", "4")))
+SHARED_KEY_GLOBAL_RPM = max(1, int(os.getenv("SHARED_KEY_GLOBAL_RPM", "24")))
+SHARED_KEY_REQUESTER_RPM = max(1, int(os.getenv("SHARED_KEY_REQUESTER_RPM", "8")))
+_llm_semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_REQUESTS)
+
+
+@dataclass(slots=True)
+class LLMRequestContext:
+    requester_id: str | None = None
+    api_key: str | None = None
+
+
+class LLMServiceError(RuntimeError):
+    """Raised for user-visible LLM traffic control errors."""
+
+    def __init__(self, message: str, *, status_code: int = 503):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class VisionExtractionError(RuntimeError):
@@ -30,16 +58,56 @@ class VisionExtractionError(RuntimeError):
         self.status_code = status_code
 
 
-def _get_client() -> Groq:
-    global _client
-    if _client is None:
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key or api_key == "your_groq_api_key_here":
-            raise RuntimeError(
-                "GROQ_API_KEY not set. Get a free key at https://console.groq.com/keys"
+def _get_configured_api_key() -> str:
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key or api_key == "your_groq_api_key_here":
+        raise RuntimeError(
+            "GROQ_API_KEY not set. Get a free key at https://console.groq.com/keys"
+        )
+    return api_key
+
+
+def _get_client(api_key: str | None = None) -> Groq:
+    global _shared_client
+    resolved_key = api_key or _get_configured_api_key()
+    with _client_lock:
+        if api_key:
+            client = _custom_clients.get(resolved_key)
+            if client is None:
+                client = Groq(api_key=resolved_key)
+                _custom_clients[resolved_key] = client
+            return client
+        if _shared_client is None:
+            _shared_client = Groq(api_key=resolved_key)
+        return _shared_client
+
+
+def _trim_window(window: deque[float], now: float, interval_s: float = 60.0) -> None:
+    while window and now - window[0] >= interval_s:
+        window.popleft()
+
+
+def _enforce_shared_budget(requester_id: str | None) -> None:
+    now = time.monotonic()
+    with _budget_lock:
+        _trim_window(_shared_request_history, now)
+        if len(_shared_request_history) >= SHARED_KEY_GLOBAL_RPM:
+            raise LLMServiceError(
+                "Shared LLM capacity is saturated. Retry in a few seconds or use your own Groq API key.",
+                status_code=429,
             )
-        _client = Groq(api_key=api_key)
-    return _client
+
+        requester_key = requester_id or "anonymous"
+        requester_window = _requester_history.setdefault(requester_key, deque())
+        _trim_window(requester_window, now)
+        if len(requester_window) >= SHARED_KEY_REQUESTER_RPM:
+            raise LLMServiceError(
+                "Per-user LLM request budget exceeded for the current minute. Retry shortly or use your own Groq API key.",
+                status_code=429,
+            )
+
+        _shared_request_history.append(now)
+        requester_window.append(now)
 
 
 def warmup_llm_client() -> dict:
@@ -57,9 +125,14 @@ async def generate_response(
     temperature: float = 0.7,
     max_tokens: int = 2048,
     retries: int = 2,
+    context: LLMRequestContext | None = None,
 ) -> str:
-    """Generate a response from Groq/Llama with retry on rate limit."""
-    client = _get_client()
+    """Generate a response with concurrency and shared-key safeguards."""
+    request_context = context or LLMRequestContext()
+    if not request_context.api_key:
+        _enforce_shared_budget(request_context.requester_id)
+
+    client = _get_client(request_context.api_key)
 
     messages = []
     if system_instruction:
@@ -67,30 +140,33 @@ async def generate_response(
     messages.append({"role": "user", "content": prompt})
 
     last_error = None
-    for attempt in range(retries + 1):
-        try:
-            response = await asyncio.to_thread(
-                client.chat.completions.create,
-                model=LLM_MODEL,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return response.choices[0].message.content or ""
-        except Exception as e:
-            last_error = e
-            error_str = str(e)
-            if "429" in error_str or "rate" in error_str.lower():
-                if attempt < retries:
-                    await asyncio.sleep(2 ** attempt * 3)
-                    continue
-                raise RuntimeError(
-                    f"Groq rate limit reached. Free tier allows 30 requests/min. "
-                    f"Please wait a moment and try again."
-                ) from e
-            raise
+    async with _llm_semaphore:
+        for attempt in range(retries + 1):
+            try:
+                response = await asyncio.to_thread(
+                    client.chat.completions.create,
+                    model=LLM_MODEL,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
+                return response.choices[0].message.content or ""
+            except Exception as e:
+                last_error = e
+                error_str = str(e)
+                if "429" in error_str or "rate" in error_str.lower():
+                    if attempt < retries:
+                        await asyncio.sleep(2 ** attempt * 2)
+                        continue
+                    raise LLMServiceError(
+                        "Groq rate limit reached. Retry in a few seconds or use your own Groq API key.",
+                        status_code=429,
+                    ) from e
+                raise
 
     raise last_error  # type: ignore
+
+
 def _prepare_image_payload(file_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
     try:
         from PIL import Image
@@ -127,7 +203,7 @@ def _prepare_image_payload(file_bytes: bytes, mime_type: str) -> tuple[bytes, st
     return prepared, target_mime
 
 
-def _vision_request(file_bytes: bytes, mime_type: str) -> str:
+def _vision_request(file_bytes: bytes, mime_type: str, api_key: str | None = None) -> str:
     prepared_bytes, prepared_mime_type = _prepare_image_payload(file_bytes, mime_type)
     image_b64 = base64.b64encode(prepared_bytes).decode("ascii")
     messages = [
@@ -153,7 +229,7 @@ def _vision_request(file_bytes: bytes, mime_type: str) -> str:
     ]
 
     try:
-        response = _get_client().chat.completions.create(
+        response = _get_client(api_key).chat.completions.create(
             model=VISION_MODEL,
             messages=messages,
             temperature=0,
@@ -190,6 +266,14 @@ def _vision_request(file_bytes: bytes, mime_type: str) -> str:
     return text
 
 
-async def extract_text_from_image(file_bytes: bytes, mime_type: str) -> str:
+async def extract_text_from_image(
+    file_bytes: bytes,
+    mime_type: str,
+    context: LLMRequestContext | None = None,
+) -> str:
     """Extract text or a concise description from an image using Groq vision."""
-    return await asyncio.to_thread(_vision_request, file_bytes, mime_type)
+    request_context = context or LLMRequestContext()
+    if not request_context.api_key:
+        _enforce_shared_budget(request_context.requester_id)
+    async with _llm_semaphore:
+        return await asyncio.to_thread(_vision_request, file_bytes, mime_type, request_context.api_key)

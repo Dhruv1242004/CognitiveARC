@@ -412,6 +412,21 @@ body::before {
   border-color: var(--border-strong);
 }
 
+.demo-input {
+  width: 100%;
+  border: 1px solid var(--border-muted);
+  border-radius: 0.95rem;
+  background: rgba(9, 14, 23, 0.9);
+  padding: 0.8rem 0.95rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.demo-input:focus {
+  border-color: var(--border-strong);
+}
+
 .demo-upload-card {
   border: 1px solid var(--border-muted);
   border-radius: 1.1rem;
@@ -423,6 +438,52 @@ body::before {
   background:
     radial-gradient(circle at top right, rgba(116, 215, 255, 0.08), transparent 30%),
     rgba(11, 17, 27, 0.92);
+}
+
+.demo-provider-card {
+  margin-top: 1rem;
+  border: 1px solid var(--border-muted);
+  border-radius: 1rem;
+  background: rgba(13, 20, 31, 0.72);
+  padding: 0.95rem 1rem;
+}
+
+.demo-provider-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border-muted);
+  border-radius: 999px;
+  background: rgba(10, 16, 26, 0.72);
+  padding: 0.45rem 0.72rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: lowercase;
+}
+
+.demo-provider-toggle {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-top: 0.9rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border-muted);
+  border-radius: 999px;
+  background: rgba(9, 14, 23, 0.92);
+}
+
+.demo-segment {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.48rem 0.8rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  transition: all 160ms ease;
+}
+
+.demo-segment.is-active {
+  background: rgba(23, 42, 64, 0.82);
+  color: var(--text-primary);
 }
 
 .demo-action-bar {
@@ -529,6 +590,15 @@ body::before {
 
   .demo-action-bar {
     align-items: stretch;
+  }
+
+  .demo-provider-toggle {
+    width: 100%;
+  }
+
+  .demo-segment {
+    flex: 1;
+    justify-content: center;
   }
 
   .demo-run-btn {

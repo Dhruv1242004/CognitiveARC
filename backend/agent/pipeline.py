@@ -11,7 +11,7 @@ from agent.memory import add_exchange, get_session_context, get_session_info
 from agent.planner import plan_execution
 from agent.retriever import retrieve_context
 from agent.tools import execute_tools
-from services.llm import generate_response
+from services.llm import LLMRequestContext, generate_response
 from services.vectordb import has_documents
 
 
@@ -26,6 +26,24 @@ Rules:
 
 
 GENERAL_SYSTEM_PROMPT = """You are CognitiveARC. Respond like a senior AI engineer: concise, structured, and technically precise."""
+
+NO_CONTEXT_SYSTEM_PROMPT = """You are CognitiveARC.
+
+Rules:
+- If the user asks about CognitiveARC, answer from the provided product context only.
+- If the user asks a general question without retrieval context, answer directly and concisely without citations.
+- Do not speculate, hedge with 'likely', or invent unsupported implementation details.
+- Do not mention citations unless retrieved context is actually present."""
+
+PRODUCT_CONTEXT = """CognitiveARC is an autonomous AI agent platform focused on:
+- document upload and indexing
+- structure-aware chunking
+- hybrid retrieval over indexed content
+- session memory and tool-routed orchestration
+- execution trace visibility with staged runtime signals
+- grounded response generation with strict retrieval mode
+
+The current stack uses a Next.js frontend, FastAPI backend, Chroma-based vector storage, warmed local embeddings, and Groq-backed generation and vision support."""
 
 
 def _start_trace(
@@ -138,6 +156,8 @@ async def run_pipeline(
     document_id: str | None = None,
     inline_text: str | None = None,
     strict_retrieval: bool = True,
+    requester_id: str | None = None,
+    provider_api_key: str | None = None,
 ) -> dict:
     if not session_id:
         session_id = str(uuid.uuid4())[:8]
@@ -149,6 +169,7 @@ async def run_pipeline(
 
     has_docs = has_documents(document_id)
     has_inline = bool(inline_text and inline_text.strip())
+    llm_context = LLMRequestContext(requester_id=requester_id, api_key=provider_api_key)
 
     planning_trace = _start_trace(
         traces,
@@ -289,6 +310,8 @@ async def run_pipeline(
         input_snippet=query[:240],
     )
 
+    use_no_context_mode = not retrieved_context and not has_docs and not has_inline
+
     if retrieved_context:
         context_lines = []
         for index, item in enumerate(retrieved_context[:5], start=1):
@@ -296,29 +319,44 @@ async def run_pipeline(
                 f"[{index}] {_summarize_context_item(item)}\n{item['text'][:1200]}"
             )
         context_section = "\n\n".join(context_lines)
-    else:
-        context_section = "No retrieval context available."
-
-    memory_section = session_context if session_context else "No prior session context."
-    prompt = f"""User Query: {query}
+        prompt = f"""User Query: {query}
 
 Retrieved Context:
 {context_section}
 
 Session Memory:
-{memory_section}
+{session_context if session_context else "No prior session context."}
 
 Return:
 1. A concise answer grounded in the retrieved context.
 2. Inline citations [1], [2] where relevant.
 3. If multiple facts are required, use short bullets.
 """
+    else:
+        prompt = f"""User Query: {query}
+
+Known Product Context:
+{PRODUCT_CONTEXT}
+
+Session Memory:
+{session_context if session_context else "No prior session context."}
+
+Return:
+1. A concise direct answer.
+2. No citations unless document retrieval context exists.
+3. If the user asks about CognitiveARC, ground the answer in the product context above.
+"""
 
     response_text = await generate_response(
         prompt=prompt,
-        system_instruction=STRICT_SYSTEM_PROMPT if strict_retrieval and has_docs else GENERAL_SYSTEM_PROMPT,
+        system_instruction=(
+            STRICT_SYSTEM_PROMPT
+            if strict_retrieval and has_docs
+            else NO_CONTEXT_SYSTEM_PROMPT if use_no_context_mode else GENERAL_SYSTEM_PROMPT
+        ),
         temperature=0.2 if retrieved_context else 0.5,
         max_tokens=900,
+        context=llm_context,
     )
     _finish_trace(
         generation_trace,

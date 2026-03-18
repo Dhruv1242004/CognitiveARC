@@ -13,14 +13,20 @@ import time
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 load_dotenv()
 
 from agent.pipeline import run_pipeline
-from services.llm import VisionExtractionError, extract_text_from_image, warmup_llm_client
+from services.llm import (
+    LLMServiceError,
+    LLMRequestContext,
+    VisionExtractionError,
+    extract_text_from_image,
+    warmup_llm_client,
+)
 from services.vectordb import (
     add_documents,
     embed_texts,
@@ -34,6 +40,7 @@ from services.vectordb import (
 from utils.chunker import StructuredChunk, chunk_document
 from utils.document import (
     SUPPORTED_EXTENSIONS,
+    build_document_profile,
     build_suggested_prompts,
     extract_structured_document,
     get_file_extension,
@@ -63,6 +70,7 @@ class UploadJob:
     document_type: str | None = None
     category: str | None = None
     title: str | None = None
+    document_profile: dict | None = None
     suggested_prompts: list[str] = field(default_factory=list)
     stage_timings: dict[str, float] = field(default_factory=dict)
     stages: list[UploadStage] = field(
@@ -108,6 +116,7 @@ class UploadResponse(BaseModel):
     document_type: str | None = None
     category: str | None = None
     title: str | None = None
+    document_profile: dict | None = None
     suggested_prompts: list[str] = []
 
 
@@ -124,6 +133,14 @@ _warm_state: dict[str, str | bool] = {
     "llm_ready": False,
     "status": "booting",
 }
+
+
+def _resolve_requester_id(request: Request, session_id: str | None = None) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else ""
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    return session_id or client_ip or "anonymous"
 
 
 def _serialize_stages(job: UploadJob) -> list[dict]:
@@ -211,6 +228,8 @@ async def _process_upload(
     file_hash: str,
     content: bytes,
     content_type: str | None,
+    requester_id: str | None = None,
+    provider_api_key: str | None = None,
 ) -> None:
     job = _upload_jobs[doc_id]
 
@@ -223,6 +242,7 @@ async def _process_upload(
             job.document_type = cached.get("document_type")
             job.category = cached.get("category")
             job.title = cached.get("title")
+            job.document_profile = cached.get("document_profile")
             job.suggested_prompts = list(cached.get("suggested_prompts", []))
             for stage in job.stages:
                 stage.status = "completed"
@@ -234,7 +254,11 @@ async def _process_upload(
         if is_image_file(filename):
             ext = get_file_extension(filename)
             mime_type = content_type or f"image/{'jpeg' if ext == 'jpg' else ext}"
-            extracted_text = await extract_text_from_image(content, mime_type)
+            extracted_text = await extract_text_from_image(
+                content,
+                mime_type,
+                context=LLMRequestContext(requester_id=requester_id, api_key=provider_api_key),
+            )
             from utils.document import ParsedDocument, DocumentSegment
 
             parsed = ParsedDocument(
@@ -252,7 +276,9 @@ async def _process_upload(
         job.document_type = parsed.file_type
         job.category = infer_document_category(parsed)
         job.title = parsed.title
-        job.suggested_prompts = build_suggested_prompts(parsed)
+        profile = build_document_profile(parsed)
+        job.document_profile = profile.as_dict()
+        job.suggested_prompts = build_suggested_prompts(parsed, profile)
 
         _mark_stage(
             job,
@@ -309,6 +335,7 @@ async def _process_upload(
                 "document_type": parsed.file_type,
                 "category": job.category,
                 "title": parsed.title,
+                "document_profile": job.document_profile,
                 "suggested_prompts": job.suggested_prompts,
             },
         )
@@ -342,19 +369,25 @@ async def health_check(warm: bool = Query(default=False)):
 
 
 @app.post("/api/query", response_model=QueryResponse)
-async def process_query(request: QueryRequest):
+async def process_query(request: QueryRequest, http_request: Request):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
     try:
+        requester_id = _resolve_requester_id(http_request, request.session_id)
+        provider_api_key = http_request.headers.get("x-groq-api-key") or None
         result = await run_pipeline(
             query=request.query,
             session_id=request.session_id,
             document_id=request.document_id,
             inline_text=request.inline_text,
             strict_retrieval=request.strict_retrieval,
+            requester_id=requester_id,
+            provider_api_key=provider_api_key,
         )
         return QueryResponse(**result)
+    except LLMServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
     except RuntimeError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
     except Exception as exc:
@@ -362,7 +395,7 @@ async def process_query(request: QueryRequest):
 
 
 @app.post("/api/upload", response_model=UploadResponse)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(request: Request, file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
 
@@ -393,6 +426,7 @@ async def upload_document(file: UploadFile = File(...)):
             document_type=cached.get("document_type"),
             category=cached.get("category"),
             title=cached.get("title"),
+            document_profile=cached.get("document_profile"),
             suggested_prompts=list(cached.get("suggested_prompts", [])),
             stages=[
                 {
@@ -437,6 +471,8 @@ async def upload_document(file: UploadFile = File(...)):
             file_hash=file_hash,
             content=content,
             content_type=file.content_type,
+            requester_id=_resolve_requester_id(request),
+            provider_api_key=request.headers.get("x-groq-api-key") or None,
         )
     )
 
@@ -451,6 +487,7 @@ async def upload_document(file: UploadFile = File(...)):
         document_type=None,
         category=None,
         title=None,
+        document_profile=None,
         suggested_prompts=[],
         stages=_serialize_stages(job),
         timings={},
@@ -473,6 +510,7 @@ async def get_upload_status(document_id: str):
                 document_type=registered.get("document_type"),
                 category=registered.get("category"),
                 title=registered.get("title"),
+                document_profile=registered.get("document_profile"),
                 suggested_prompts=list(registered.get("suggested_prompts", [])),
                 stages=[],
                 timings={},
@@ -492,6 +530,7 @@ async def get_upload_status(document_id: str):
         document_type=job.document_type,
         category=job.category,
         title=job.title,
+        document_profile=job.document_profile,
         suggested_prompts=job.suggested_prompts,
         stages=_serialize_stages(job),
         timings={stage.key: stage.timing_ms for stage in job.stages if stage.timing_ms is not None},
