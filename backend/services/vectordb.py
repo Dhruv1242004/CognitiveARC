@@ -25,6 +25,7 @@ _client: chromadb.ClientAPI | None = None
 _collections: dict[str, chromadb.Collection] = {}
 _embedding_lock = threading.Lock()
 _client_lock = threading.Lock()
+_collection_lock = threading.Lock()
 _document_registry: dict[str, dict[str, Any]] = {}
 _hash_registry: dict[str, str] = {}
 
@@ -101,11 +102,13 @@ def _get_client() -> chromadb.ClientAPI:
 
 def get_or_create_collection(name: str = "documents") -> chromadb.Collection:
     if name not in _collections:
-        client = _get_client()
-        _collections[name] = client.get_or_create_collection(
-            name=name,
-            metadata={"hnsw:space": "cosine"},
-        )
+        with _collection_lock:
+            if name not in _collections:
+                client = _get_client()
+                _collections[name] = client.get_or_create_collection(
+                    name=name,
+                    metadata={"hnsw:space": "cosine"},
+                )
     return _collections[name]
 
 

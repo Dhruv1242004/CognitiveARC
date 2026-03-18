@@ -46,6 +46,52 @@ class ParsedDocument:
         return "\n\n".join(segment.text for segment in self.segments if segment.text.strip())
 
 
+def infer_document_category(parsed: ParsedDocument) -> str:
+    haystack = f"{parsed.filename} {parsed.title} {parsed.full_text[:5000]}".lower()
+    if any(token in haystack for token in ["resume", "curriculum vitae", "experience", "education", "skills"]):
+        return "resume"
+    if any(token in haystack for token in ["abstract", "methodology", "results", "references", "experiment"]):
+        return "research"
+    if any(token in haystack for token in ["roadmap", "milestone", "timeline", "deliverable", "project"]):
+        return "project"
+    if any(token in haystack for token in ["budget", "forecast", "revenue", "financial", "report"]):
+        return "report"
+    return "general"
+
+
+def build_suggested_prompts(parsed: ParsedDocument) -> list[str]:
+    category = infer_document_category(parsed)
+    if category == "resume":
+        return [
+            "Summarize this candidate in 5 bullets.",
+            "What are the strongest engineering signals here?",
+            "List projects, stack, and measurable impact.",
+        ]
+    if category == "research":
+        return [
+            "Summarize the paper's core contribution.",
+            "What methodology and results are described?",
+            "List limitations or future work mentioned.",
+        ]
+    if category == "project":
+        return [
+            "What milestones or deliverables are defined?",
+            "What risks or blockers are mentioned?",
+            "Extract action items with evidence.",
+        ]
+    if category == "report":
+        return [
+            "Summarize the key findings.",
+            "What trends or risks stand out?",
+            "List the most important metrics mentioned.",
+        ]
+    return [
+        "Summarize the document.",
+        "What are the key findings?",
+        "Extract the most important action items.",
+    ]
+
+
 def get_file_extension(filename: str) -> str:
     return filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
 

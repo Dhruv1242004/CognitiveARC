@@ -72,8 +72,8 @@ export default function Architecture() {
               className="surface-card"
             >
               <div
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border"
-                style={{ borderColor: `${layer.accent}55`, background: `${layer.accent}14` }}
+                className="architecture-icon"
+                style={{ background: `radial-gradient(circle at 30% 30%, ${layer.accent}26, rgba(10,16,26,0.6) 72%)` }}
               >
                 <Icon size={18} style={{ color: layer.accent }} />
               </div>

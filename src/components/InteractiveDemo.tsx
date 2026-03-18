@@ -36,6 +36,10 @@ interface UploadResult {
   file_hash: string;
   stages: UploadStage[];
   timings: Record<string, number>;
+  document_type?: string | null;
+  category?: string | null;
+  title?: string | null;
+  suggested_prompts?: string[];
 }
 
 interface ExecutionTraceStep {
@@ -97,7 +101,7 @@ interface PipelineResult {
   strict_mode: boolean;
 }
 
-const prompts = [
+const fallbackPrompts = [
   "What milestones are explicitly mentioned in this document?",
   "Which section discusses risks or blockers?",
   "Extract action items with evidence.",
@@ -122,7 +126,7 @@ const trimDetail = (value: string, max = 88) => (value.length > max ? `${value.s
 
 export default function InteractiveDemo() {
   const [activeTab, setActiveTab] = useState<ResultTab>("output");
-  const [input, setInput] = useState(prompts[0]);
+  const [input, setInput] = useState(fallbackPrompts[0]);
   const [inlineText, setInlineText] = useState("");
   const [strictMode, setStrictMode] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -233,6 +237,9 @@ export default function InteractiveDemo() {
   }, [inlineText, input, loading, sessionId, strictMode, uploadedDoc]);
 
   const uploadReady = uploadedDoc?.status === "completed";
+  const promptSuggestions = uploadedDoc?.suggested_prompts?.length
+    ? uploadedDoc.suggested_prompts
+    : fallbackPrompts;
   const runtimeSummary = useMemo(() => {
     if (!result) return [];
     return [
@@ -258,6 +265,12 @@ export default function InteractiveDemo() {
           <div>
             <p className="demo-label">Query Workspace</p>
             <h3 className="demo-heading">Upload a document and run a targeted query</h3>
+            {uploadedDoc?.title ? (
+              <p className="demo-helper mt-2">
+                Detected: {uploadedDoc.title}
+                {uploadedDoc.category ? ` • ${uploadedDoc.category}` : ""}
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             {runtimeSummary.map((item) => (
@@ -268,10 +281,10 @@ export default function InteractiveDemo() {
           </div>
         </div>
 
-        <div className="grid gap-6 border-b border-[var(--border-muted)] px-5 py-5 sm:px-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="grid gap-6 border-b border-[var(--border-muted)] px-5 py-5 sm:px-6 xl:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              {prompts.slice(0, 2).map((prompt) => (
+              {promptSuggestions.slice(0, 3).map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
@@ -288,7 +301,7 @@ export default function InteractiveDemo() {
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                rows={3}
+                rows={4}
                 className="demo-textarea mt-2"
               />
             </label>
@@ -298,7 +311,7 @@ export default function InteractiveDemo() {
               <textarea
                 value={inlineText}
                 onChange={(event) => setInlineText(event.target.value)}
-                rows={3}
+                rows={4}
                 placeholder="Paste notes or reference text to compare against the uploaded file."
                 className="demo-textarea mt-2"
               />
@@ -306,7 +319,7 @@ export default function InteractiveDemo() {
           </div>
 
           <div className="space-y-4">
-            <div className="demo-upload-card">
+            <div className="demo-upload-card demo-upload-surface">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="demo-subtitle">Document</p>
@@ -355,7 +368,7 @@ export default function InteractiveDemo() {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-[1.15rem] border border-[var(--border-muted)] bg-[var(--panel-soft)] px-4 py-3.5">
+            <div className="demo-action-bar">
               <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                 <ShieldCheck size={15} className="text-[var(--accent-emerald)]" />
                 strict retrieval
@@ -367,7 +380,7 @@ export default function InteractiveDemo() {
                 />
               </label>
 
-              <button type="button" onClick={() => void runQuery()} className="btn btn-primary" disabled={loading}>
+              <button type="button" onClick={() => void runQuery()} className="btn btn-primary demo-run-btn" disabled={loading}>
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <MessageSquareText size={16} />}
                 Run Query
               </button>
@@ -378,7 +391,7 @@ export default function InteractiveDemo() {
           </div>
         </div>
 
-        <div className="grid gap-6 px-5 py-5 sm:px-6 xl:grid-cols-[0.78fr_1.22fr]">
+        <div className="grid gap-6 px-5 py-5 sm:px-6 xl:grid-cols-[0.76fr_1.24fr]">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>

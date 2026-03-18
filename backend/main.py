@@ -34,8 +34,10 @@ from services.vectordb import (
 from utils.chunker import StructuredChunk, chunk_document
 from utils.document import (
     SUPPORTED_EXTENSIONS,
+    build_suggested_prompts,
     extract_structured_document,
     get_file_extension,
+    infer_document_category,
     is_image_file,
 )
 
@@ -58,6 +60,10 @@ class UploadJob:
     message: str = "Upload received. Waiting for indexing."
     status: str = "processing"
     error: str | None = None
+    document_type: str | None = None
+    category: str | None = None
+    title: str | None = None
+    suggested_prompts: list[str] = field(default_factory=list)
     stage_timings: dict[str, float] = field(default_factory=dict)
     stages: list[UploadStage] = field(
         default_factory=lambda: [
@@ -99,6 +105,10 @@ class UploadResponse(BaseModel):
     file_hash: str
     stages: list[dict]
     timings: dict
+    document_type: str | None = None
+    category: str | None = None
+    title: str | None = None
+    suggested_prompts: list[str] = []
 
 
 class HealthResponse(BaseModel):
@@ -210,6 +220,10 @@ async def _process_upload(
             job.status = "completed"
             job.message = f"Skipped re-indexing. Reused cached document for {filename}."
             job.chunks = int(cached.get("chunks", 0))
+            job.document_type = cached.get("document_type")
+            job.category = cached.get("category")
+            job.title = cached.get("title")
+            job.suggested_prompts = list(cached.get("suggested_prompts", []))
             for stage in job.stages:
                 stage.status = "completed"
                 stage.detail = "Reused cached artifact"
@@ -234,6 +248,11 @@ async def _process_upload(
 
         if not parsed.segments:
             raise RuntimeError("No structured content could be extracted from the file")
+
+        job.document_type = parsed.file_type
+        job.category = infer_document_category(parsed)
+        job.title = parsed.title
+        job.suggested_prompts = build_suggested_prompts(parsed)
 
         _mark_stage(
             job,
@@ -288,7 +307,9 @@ async def _process_upload(
                 "file_hash": file_hash,
                 "chunks": indexed,
                 "document_type": parsed.file_type,
+                "category": job.category,
                 "title": parsed.title,
+                "suggested_prompts": job.suggested_prompts,
             },
         )
     except VisionExtractionError as exc:
@@ -369,6 +390,10 @@ async def upload_document(file: UploadFile = File(...)):
             message=f"Document already indexed. Reusing {cached_doc_id}.",
             status="completed",
             file_hash=file_hash,
+            document_type=cached.get("document_type"),
+            category=cached.get("category"),
+            title=cached.get("title"),
+            suggested_prompts=list(cached.get("suggested_prompts", [])),
             stages=[
                 {
                     "key": "parsing",
@@ -423,6 +448,10 @@ async def upload_document(file: UploadFile = File(...)):
         message=f"Upload received. Processing {file.filename}...",
         status="processing",
         file_hash=file_hash,
+        document_type=None,
+        category=None,
+        title=None,
+        suggested_prompts=[],
         stages=_serialize_stages(job),
         timings={},
     )
@@ -441,6 +470,10 @@ async def get_upload_status(document_id: str):
                 message="Document already indexed.",
                 status="completed",
                 file_hash=str(registered.get("file_hash", "")),
+                document_type=registered.get("document_type"),
+                category=registered.get("category"),
+                title=registered.get("title"),
+                suggested_prompts=list(registered.get("suggested_prompts", [])),
                 stages=[],
                 timings={},
             )
@@ -456,6 +489,10 @@ async def get_upload_status(document_id: str):
         message=job.message,
         status=job.status,
         file_hash=job.file_hash,
+        document_type=job.document_type,
+        category=job.category,
+        title=job.title,
+        suggested_prompts=job.suggested_prompts,
         stages=_serialize_stages(job),
         timings={stage.key: stage.timing_ms for stage in job.stages if stage.timing_ms is not None},
     )
