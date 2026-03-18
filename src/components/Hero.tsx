@@ -1,167 +1,154 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ArrowRight, Play, Github } from "lucide-react";
+import { ArrowRight, CheckCircle2, Github, Play } from "lucide-react";
 
-const pipelineSteps = [
-    { label: "User Query", color: "#22d3ee" },
-    { label: "Agent Planner", color: "#3b82f6" },
-    { label: "Retrieval Engine", color: "#8b5cf6" },
-    { label: "Memory Context", color: "#a78bfa" },
-    { label: "Tool Router", color: "#6366f1" },
-    { label: "LLM Response Generator", color: "#3b82f6" },
-    { label: "Structured Output", color: "#22d3ee" },
+const credibilityChips = [
+  "Modular Agent Pipeline",
+  "RAG + Memory",
+  "Tool Orchestration",
+  "FastAPI + Docker",
+  "Observability Ready",
 ];
 
-const techTags = ["FastAPI", "Python", "RAG", "Vector Database", "Docker"];
-
-const fadeIn = {
-    hidden: { opacity: 0, y: 20 },
-    visible: (i: number) => ({
-        opacity: 1,
-        y: 0,
-        transition: { delay: i * 0.08, duration: 0.5, ease: "easeOut" as const },
-    }),
-};
+const miniTrace = [
+  { label: "user.query", status: "completed", detail: "Targeted product due diligence request", ms: "0ms" },
+  { label: "planner", status: "completed", detail: "Classified as retrieval-backed QA", ms: "28ms" },
+  { label: "retriever", status: "completed", detail: "6 ranked chunks across 2 sections", ms: "84ms" },
+  { label: "memory", status: "completed", detail: "Loaded prior session context", ms: "7ms" },
+  { label: "tool_router", status: "completed", detail: "Scheduled vector search + formatter", ms: "12ms" },
+  { label: "generator", status: "running", detail: "Assembling grounded answer with citations", ms: "live" },
+];
 
 export default function Hero() {
-    return (
-        <section className="relative min-h-screen flex items-center pt-16 overflow-hidden">
-            {/* Subtle background gradient */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div
-                    className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px]"
-                    style={{
-                        background:
-                            "radial-gradient(ellipse at center, rgba(34,211,238,0.06) 0%, transparent 70%)",
-                    }}
-                />
+  return (
+    <section className="relative overflow-hidden pt-28 pb-18 sm:pt-32 sm:pb-22">
+      <div className="hero-backdrop" />
+      <div className="mx-auto grid max-w-7xl gap-14 px-6 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55 }}
+          className="relative z-10"
+        >
+          <div className="eyebrow-chip">Autonomous AI Agent Platform</div>
+          <h1 className="mt-6 max-w-3xl text-4xl font-semibold tracking-[-0.04em] text-[var(--text-primary)] sm:text-5xl lg:text-[4.35rem] lg:leading-[1.02]">
+            CognitiveARC is a modular agent orchestration system built to show how real AI workflows execute.
+          </h1>
+          <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--text-secondary)] sm:text-lg">
+            Planning, retrieval, memory lookup, tool routing, grounded generation, and structured output are separated into
+            observable runtime stages so recruiters can see backend depth, not just a polished wrapper.
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            {credibilityChips.map((chip) => (
+              <span key={chip} className="credibility-chip">
+                <CheckCircle2 size={14} />
+                {chip}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-10 flex flex-wrap gap-4">
+            <a href="#demo" className="btn btn-primary">
+              <Play size={16} />
+              Launch Live Demo
+            </a>
+            <a href="#execution-trace" className="btn btn-secondary">
+              View Execution Trace
+              <ArrowRight size={16} />
+            </a>
+            <a
+              href="https://github.com/Dhruv1242004/CognitiveARC"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-tertiary"
+            >
+              <Github size={16} />
+              Source Code
+            </a>
+          </div>
+
+          <div className="mt-10 grid gap-4 sm:grid-cols-3">
+            <div className="hero-stat-card">
+              <span className="hero-stat-value">6 stages</span>
+              <span className="hero-stat-label">Visible execution pipeline</span>
+            </div>
+            <div className="hero-stat-card">
+              <span className="hero-stat-value">Hybrid RAG</span>
+              <span className="hero-stat-label">Semantic + keyword retrieval</span>
+            </div>
+            <div className="hero-stat-card">
+              <span className="hero-stat-value">Warm startup</span>
+              <span className="hero-stat-label">Preloaded embedding path</span>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.08, duration: 0.6 }}
+          className="relative z-10"
+        >
+          <div className="console-panel overflow-hidden">
+            <div className="console-topbar">
+              <div className="console-lights">
+                <span />
+                <span />
+                <span />
+              </div>
+              <span className="console-title">live-run.preview</span>
             </div>
 
-            <div className="max-w-6xl mx-auto px-6 w-full grid lg:grid-cols-2 gap-12 lg:gap-16 items-center py-20">
-                {/* Left content */}
-                <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    className="flex flex-col gap-6"
-                >
-                    <motion.div custom={0} variants={fadeIn}>
-                        <span className="section-title">Autonomous AI Agent Platform</span>
-                    </motion.div>
+            <div className="grid gap-5 p-5 sm:p-6">
+              <div className="rounded-2xl border border-[var(--border-muted)] bg-[var(--panel-strong)] p-4">
+                <div className="flex items-center justify-between text-[0.72rem] uppercase tracking-[0.22em] text-[var(--text-dim)]">
+                  <span>Input</span>
+                  <span>session 7af2b1</span>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-[var(--text-primary)]">
+                  Compare the uploaded board deck against prior planning notes and extract the milestones with direct evidence.
+                </p>
+              </div>
 
-                    <motion.h1
-                        custom={1}
-                        variants={fadeIn}
-                        className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold leading-[1.1] tracking-tight"
-                        style={{ fontFamily: "var(--font-plus-jakarta), var(--font-inter), sans-serif" }}
-                    >
-                        Cognitive
-                        <span className="text-[var(--accent-cyan)]">ARC</span>
-                    </motion.h1>
-
-                    <motion.p
-                        custom={2}
-                        variants={fadeIn}
-                        className="text-[var(--text-secondary)] text-base sm:text-lg leading-relaxed max-w-lg"
-                    >
-                        A modular AI agent system combining retrieval, tool execution, and
-                        contextual memory to perform grounded multi-step reasoning
-                        workflows.
-                    </motion.p>
-
-                    <motion.div custom={3} variants={fadeIn} className="flex flex-wrap gap-3 mt-1">
-                        <a href="#demo" className="btn btn-primary btn-pill">
-                            <Play size={15} />
-                            Live Demo
-                        </a>
-                        <a
-                            href="https://github.com/Dhruv1242004/CognitiveARC"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-secondary btn-pill"
-                        >
-                            <Github size={15} />
-                            Source Code
-                        </a>
-                    </motion.div>
-
-                    <motion.div custom={4} variants={fadeIn} className="flex flex-wrap gap-2 mt-2">
-                        {techTags.map((tag) => (
-                            <span key={tag} className="tag">
-                                {tag}
-                            </span>
-                        ))}
-                    </motion.div>
-                </motion.div>
-
-                {/* Right — pipeline visualization */}
-                <motion.div
-                    initial={{ opacity: 0, x: 30 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3, duration: 0.6 }}
-                    className="hidden lg:block"
-                >
-                    <div className="relative border border-[var(--border-subtle)] rounded-2xl bg-[var(--bg-secondary)] p-8">
-                        {/* Header */}
-                        <div className="flex items-center gap-2 mb-6">
-                            <span className="ml-3 text-xs text-[var(--text-muted)] font-mono">
-                                agent-pipeline.flow
-                            </span>
-                        </div>
-
-                        {/* Pipeline steps */}
-                        <div className="flex flex-col gap-0">
-                            {pipelineSteps.map((step, i) => (
-                                <motion.div
-                                    key={step.label}
-                                    initial={{ opacity: 0, x: -15 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.5 + i * 0.1, duration: 0.4 }}
-                                >
-                                    <div className="flex items-center gap-3 py-2.5 px-3 group">
-                                        {/* Dot + connector */}
-                                        <div className="relative flex flex-col items-center">
-                                            <div
-                                                className="w-2.5 h-2.5 rounded-full"
-                                                style={{
-                                                    background: step.color,
-                                                    boxShadow: `0 0 0 2px var(--bg-secondary), 0 0 0 4px ${step.color}, 0 0 8px ${step.color}40`,
-                                                }}
-                                            />
-                                        </div>
-
-                                        {/* Label */}
-                                        <span className="text-sm font-mono text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
-                                            {step.label}
-                                        </span>
-                                    </div>
-
-                                    {/* Connector line */}
-                                    {i < pipelineSteps.length - 1 && (
-                                        <div className="flex items-center gap-3 px-3">
-                                            <div className="relative flex flex-col items-center">
-                                                <div className="w-[1px] h-3 bg-[var(--border-medium)]" />
-                                                <ArrowRight
-                                                    size={10}
-                                                    className="text-[var(--text-muted)] rotate-90 -mt-0.5"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            ))}
-                        </div>
-
-                        {/* Subtle pulse indicator */}
-                        <div className="mt-6 flex items-center gap-2 px-3">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#27c93f] animate-pulse" />
-                            <span className="text-[11px] text-[var(--text-muted)] font-mono">
-                                Pipeline active
-                            </span>
-                        </div>
+              <div className="space-y-3">
+                {miniTrace.map((step, index) => (
+                  <motion.div
+                    key={step.label}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.18 + index * 0.05, duration: 0.35 }}
+                    className="trace-row"
+                  >
+                    <div className={`status-dot status-${step.status}`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="font-mono text-[0.82rem] text-[var(--text-primary)]">{step.label}</span>
+                        <span className="trace-ms">{step.ms}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-[var(--text-secondary)]">{step.detail}</p>
                     </div>
-                </motion.div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-[rgba(114,226,169,0.18)] bg-[rgba(29,57,45,0.35)] p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[0.72rem] uppercase tracking-[0.22em] text-[var(--accent-emerald)]">Structured Output</span>
+                  <span className="rounded-full border border-[rgba(114,226,169,0.2)] px-2 py-1 text-[0.66rem] text-[var(--accent-emerald)]">
+                    grounded
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-[var(--text-primary)]">
+                  Milestones were validated against the slide deck timeline and memo history, with cited evidence from the
+                  “Q3 Delivery Plan” and “Risks” sections.
+                </p>
+              </div>
             </div>
-        </section>
-    );
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
 }

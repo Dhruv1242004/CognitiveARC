@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
+    { label: "Execution", href: "#execution-trace" },
     { label: "Architecture", href: "#architecture" },
-    { label: "Capabilities", href: "#capabilities" },
-    { label: "Tech Stack", href: "#tech-stack" },
+    { label: "Metrics", href: "#metrics" },
+    { label: "Demo", href: "#demo" },
+    { label: "Infra", href: "#infra" },
 ];
 
 export default function Navbar() {
@@ -22,16 +25,18 @@ export default function Navbar() {
     return (
         <nav
             className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
-                ? "bg-[#08090d]/90 backdrop-blur-md border-b border-[var(--border-subtle)]"
+                ? "border-b border-[var(--border-muted)] bg-[rgba(7,10,16,0.84)] backdrop-blur-xl"
                 : "bg-transparent"
                 }`}
         >
-            <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div className="mx-auto flex h-[4.65rem] max-w-7xl items-center justify-between px-6">
                 {/* Logo */}
                 <a href="#" className="group inline-flex items-center">
-                    <img
+                    <Image
                         src="/cognitiveARC.png"
                         alt="CognitiveARC"
+                        width={180}
+                        height={48}
                         className="h-10 md:h-12 w-auto object-contain opacity-95 group-hover:opacity-100 transition-opacity"
                     />
                 </a>
@@ -48,12 +53,12 @@ export default function Navbar() {
                         </a>
                     ))}
                     <a
-                        href="https://github.com/Dhruv1242004"
+                        href="https://github.com/Dhruv1242004/CognitiveARC"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn btn-secondary text-sm py-2 px-4"
+                        className="btn btn-tertiary"
                     >
-                        Explore My Github
+                        View Source
                     </a>
                 </div>
 
@@ -68,8 +73,8 @@ export default function Navbar() {
 
             {/* Mobile menu */}
             {mobileOpen && (
-                <div className="md:hidden border-t border-[var(--border-subtle)] bg-[var(--bg-primary)]">
-                    <div className="px-6 py-4 flex flex-col gap-3">
+                <div className="border-t border-[var(--border-muted)] bg-[rgba(7,10,16,0.94)] md:hidden">
+                    <div className="flex flex-col gap-3 px-6 py-4">
                         {navLinks.map((link) => (
                             <a
                                 key={link.label}
@@ -81,12 +86,12 @@ export default function Navbar() {
                             </a>
                         ))}
                         <a
-                            href="https://github.com/Dhruv1242004"
+                            href="https://github.com/Dhruv1242004/CognitiveARC"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="btn btn-secondary text-sm py-2 px-4 w-fit mt-1"
+                            className="btn btn-tertiary mt-1 w-fit"
                         >
-                            Explore My Github
+                            View Source
                         </a>
                     </div>
                 </div>

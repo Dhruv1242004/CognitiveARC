@@ -1,29 +1,46 @@
 """
-Retrieval Engine — Semantic search over the vector database.
-Uses ChromaDB's built-in embeddings for similarity search.
+Hybrid retrieval engine with metadata-aware reranking.
 """
 
-from services.vectordb import query_documents, has_documents as check_has_docs
+from __future__ import annotations
+
+import time
+
+from services.vectordb import hybrid_search, has_documents as check_has_docs
 
 
 async def retrieve_context(
+    *,
     query: str,
     doc_id: str | None = None,
-    n_results: int = 5,
-) -> list[dict]:
-    """
-    Retrieve the most relevant chunks from the vector store
-    for the given query text.
-    """
+    section_title: str | None = None,
+    n_results: int = 6,
+) -> dict:
     if not check_has_docs(doc_id):
-        return []
+        return {"results": [], "timing_ms": 0, "strategy": "hybrid", "filters": {}}
 
-    where_filter = {"doc_id": doc_id} if doc_id else None
+    where_filter: dict | None = {"doc_id": doc_id} if doc_id else None
+    if section_title:
+        where_filter = {**(where_filter or {}), "section_title": section_title}
 
-    results = query_documents(
+    started = time.perf_counter()
+    results = hybrid_search(
         query_text=query,
-        n_results=n_results,
+        top_k=n_results,
+        vector_k=max(n_results + 4, 10),
         where=where_filter,
     )
+    timing_ms = round((time.perf_counter() - started) * 1000, 2)
 
-    return results
+    filtered = [
+        item
+        for item in results
+        if item.get("combined_score", 0.0) >= 0.18 or item.get("keyword_score", 0.0) >= 0.35
+    ]
+
+    return {
+        "results": filtered,
+        "timing_ms": timing_ms,
+        "strategy": "hybrid",
+        "filters": where_filter or {},
+    }

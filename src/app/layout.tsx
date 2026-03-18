@@ -19,11 +19,11 @@ const plusJakarta = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "CognitiveARC — Autonomous AI Agent Platform",
   description:
-    "A modular AI agent system combining retrieval, tool execution, and contextual memory to perform grounded multi-step reasoning workflows.",
+    "CognitiveARC is an observable AI agent orchestration platform with retrieval grounding, execution trace visibility, tool routing, and deployable systems architecture.",
   openGraph: {
     title: "CognitiveARC — Autonomous AI Agent Platform",
     description:
-      "A modular AI agent system combining retrieval, tool execution, and contextual memory to perform grounded multi-step reasoning workflows.",
+      "An architecture-first AI agent platform showing planning, retrieval, memory, tool execution, grounded response generation, and deployable infra readiness.",
     type: "website",
   },
 };

@@ -1,65 +1,135 @@
 """
-Pipeline Orchestrator — Ties all agent stages together.
-This is the main entry point for processing user queries through the full agent pipeline.
+Pipeline orchestrator with execution trace visibility and strict grounded responses.
 """
 
+from __future__ import annotations
+
+import time
+import uuid
+
+from agent.memory import add_exchange, get_session_context, get_session_info
 from agent.planner import plan_execution
 from agent.retriever import retrieve_context
-from agent.memory import get_session_context, add_exchange, get_session_info
 from agent.tools import execute_tools
 from services.llm import generate_response
 from services.vectordb import has_documents
-import uuid
 
 
-RESPONSE_PROMPT = """You are CognitiveARC, an autonomous AI agent. Generate a helpful, well-structured response to the user's query.
+STRICT_SYSTEM_PROMPT = """You are CognitiveARC, an AI systems agent operating in strict retrieval mode.
 
-{context_section}
-
-{memory_section}
-
-User Query: {query}
-
-Instructions:
-- If context documents were provided, ground your response in them and cite relevant information.
-- If no documents are available, respond based on your general knowledge.
-- Structure your response clearly with headers and bullet points where appropriate.
-- Be thorough but concise.
-- Use markdown formatting for readability."""
+Rules:
+- Answer using only the retrieved context when documents are present.
+- Cite source chunks inline using [1], [2], etc.
+- If the answer is not supported by the retrieved context, say exactly: "Not found in indexed document."
+- Keep the answer technical, concise, and specific.
+- Do not invent implementation details or generic filler."""
 
 
-def _build_tools_needed(
-    plan: dict,
+GENERAL_SYSTEM_PROMPT = """You are CognitiveARC. Respond like a senior AI engineer: concise, structured, and technically precise."""
+
+
+def _start_trace(
+    traces: list[dict],
     *,
-    has_docs: bool,
-    has_inline: bool,
-    has_session_memory: bool,
-) -> list[str]:
-    """
-    Hybrid tool selection:
-    - Keep planner-selected tools.
-    - Force-add deterministic core tools for observability/consistency.
-    """
-    planned = plan.get("tools_needed", []) or []
-    merged: list[str] = [t for t in planned if isinstance(t, str) and t.strip()]
+    key: str,
+    label: str,
+    description: str,
+    input_snippet: str | None = None,
+) -> dict:
+    trace = {
+        "key": key,
+        "label": label,
+        "description": description,
+        "status": "running",
+        "timing_ms": 0.0,
+        "input": input_snippet,
+        "output": None,
+        "logs": [],
+    }
+    trace["_started_at"] = time.perf_counter()
+    traces.append(trace)
+    return trace
 
-    if has_docs and plan.get("requires_retrieval", True):
-        merged.append("VectorSearch")
-    if has_inline:
-        merged.append("TextAnalyzer")
-    if has_session_memory:
-        merged.append("MemoryManager")
 
-    # ResponseComposer should always be present as the final composition step.
-    merged.append("ResponseComposer")
+def _finish_trace(trace: dict, *, status: str, output: str | None = None, log: str | None = None) -> None:
+    started_at = trace.pop("_started_at", time.perf_counter())
+    trace["status"] = status
+    trace["timing_ms"] = round((time.perf_counter() - started_at) * 1000, 2)
+    trace["output"] = output
+    if log:
+        trace["logs"].append(log)
 
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for tool in merged:
-        if tool not in seen:
-            seen.add(tool)
-            deduped.append(tool)
-    return deduped
+
+def _summarize_context_item(item: dict) -> str:
+    source_parts = [item.get("source", "unknown")]
+    if item.get("section_title"):
+        source_parts.append(f"section {item['section_title']}")
+    if item.get("page_number"):
+        source_parts.append(f"page {item['page_number']}")
+    if item.get("slide_number"):
+        source_parts.append(f"slide {item['slide_number']}")
+    return ", ".join(source_parts)
+
+
+def _build_supporting_excerpts(context_items: list[dict]) -> list[dict]:
+    excerpts = []
+    for index, item in enumerate(context_items[:4], start=1):
+        excerpts.append(
+            {
+                "citation": f"[{index}]",
+                "excerpt": item["text"][:260].strip(),
+                "source": item.get("source", "unknown"),
+                "section_title": item.get("section_title"),
+                "page_number": item.get("page_number"),
+                "slide_number": item.get("slide_number"),
+                "score": item.get("combined_score", item.get("relevance", 0)),
+            }
+        )
+    return excerpts
+
+
+def _build_sources(context_items: list[dict]) -> list[dict]:
+    sources = []
+    seen = set()
+    for item in context_items:
+        key = (
+            item.get("source"),
+            item.get("section_title"),
+            item.get("page_number"),
+            item.get("slide_number"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        sources.append(
+            {
+                "document": item.get("source", "unknown"),
+                "section_title": item.get("section_title"),
+                "page_number": item.get("page_number"),
+                "slide_number": item.get("slide_number"),
+            }
+        )
+    return sources
+
+
+def _build_not_found_payload(session_id: str, traces: list[dict], tools: list[dict], timings: dict) -> dict:
+    answer = "Not found in indexed document."
+    return {
+        "query": "",
+        "reasoning": [f"{trace['label']}: {trace['status']}" for trace in traces],
+        "context": [],
+        "tools": tools,
+        "response": answer,
+        "session_id": session_id,
+        "execution_trace": traces,
+        "structured_output": {
+            "answer": answer,
+            "supporting_excerpts": [],
+            "sources": [],
+        },
+        "timings": timings,
+        "strict_mode": True,
+    }
 
 
 async def run_pipeline(
@@ -67,134 +137,243 @@ async def run_pipeline(
     session_id: str | None = None,
     document_id: str | None = None,
     inline_text: str | None = None,
+    strict_retrieval: bool = True,
 ) -> dict:
-    """
-    Execute the full agent pipeline:
-    1. Plan execution
-    2. Retrieve relevant context
-    3. Load session memory
-    4. Execute tools
-    5. Generate LLM response
-    6. Store in memory
-    7. Return structured result
-    """
     if not session_id:
         session_id = str(uuid.uuid4())[:8]
 
-    reasoning_steps = []
-
-    # ── Stage 1: Planning ──
-    reasoning_steps.append(f"1. Parsing query: \"{query[:80]}{'...' if len(query) > 80 else ''}\"")
+    traces: list[dict] = []
+    timings: dict[str, float] = {}
+    started = time.perf_counter()
+    reasoning_steps: list[str] = []
 
     has_docs = has_documents(document_id)
     has_inline = bool(inline_text and inline_text.strip())
 
-    plan = await plan_execution(
-        query=query,
-        has_documents=has_docs,
-        has_text_input=has_inline,
+    planning_trace = _start_trace(
+        traces,
+        key="planner",
+        label="Planner",
+        description="Classifies intent and composes the orchestration path.",
+        input_snippet=query[:240],
     )
+    plan = await plan_execution(query=query, has_documents=has_docs, has_text_input=has_inline)
+    _finish_trace(
+        planning_trace,
+        status="completed",
+        output=f"{plan['task_type']} | tools: {', '.join(plan['tools_needed'])}",
+        log=f"Intent: {plan['intent']}",
+    )
+    timings["planning_ms"] = planning_trace["timing_ms"]
+    reasoning_steps.append(f"Planner resolved task type `{plan['task_type']}`")
 
-    reasoning_steps.append(f"2. Intent classified: {plan['intent']}")
-    reasoning_steps.append(f"3. Task type: {plan['task_type']}")
-    reasoning_steps.append(f"4. Execution plan: {' → '.join(plan['plan_steps'][:4])}")
-
-    # ── Stage 2: Context Retrieval ──
-    retrieved_context = []
+    retrieved_context: list[dict] = []
+    retrieval_timing_ms = 0.0
+    retrieval_trace = _start_trace(
+        traces,
+        key="retrieval",
+        label="Retriever",
+        description="Runs hybrid semantic + keyword retrieval over indexed chunks.",
+        input_snippet=query[:240],
+    )
 
     if has_inline:
-        # User provided inline text — use it directly as context
-        reasoning_steps.append("5. Using provided text as context source")
-        retrieved_context.append({
-            "text": inline_text[:2000],
-            "source": "user_input",
-            "relevance": 1.0,
-        })
-    elif has_docs and plan.get("requires_retrieval", True):
-        reasoning_steps.append("5. Querying vector store for relevant chunks...")
-        retrieved_context = await retrieve_context(
-            query=query,
-            doc_id=document_id,
-            n_results=4,
+        retrieved_context = [
+            {
+                "id": "inline_text_0",
+                "text": inline_text[:2400],
+                "source": "inline_text",
+                "relevance": 1.0,
+                "combined_score": 1.0,
+                "section_title": "Provided Input",
+                "page_number": None,
+                "slide_number": None,
+            }
+        ]
+        _finish_trace(
+            retrieval_trace,
+            status="completed",
+            output="Inline text injected as retrieval context",
+            log="Bypassed vector search because inline text was provided.",
         )
-        if retrieved_context:
-            reasoning_steps.append(f"   → Retrieved {len(retrieved_context)} relevant chunks (top relevance: {retrieved_context[0]['relevance']})")
-        else:
-            reasoning_steps.append("   → No relevant chunks found in knowledge base")
+    elif has_docs and plan.get("requires_retrieval", True):
+        retrieval_result = await retrieve_context(query=query, doc_id=document_id, n_results=6)
+        retrieved_context = retrieval_result["results"]
+        retrieval_timing_ms = retrieval_result["timing_ms"]
+        _finish_trace(
+            retrieval_trace,
+            status="completed" if retrieved_context else "failed",
+            output=f"{len(retrieved_context)} grounded chunks",
+            log=f"Hybrid retrieval completed in {retrieval_timing_ms} ms",
+        )
     else:
-        reasoning_steps.append("5. No document context available — using general knowledge")
+        _finish_trace(
+            retrieval_trace,
+            status="completed",
+            output="No indexed document scope",
+            log="General knowledge mode",
+        )
 
-    # ── Stage 3: Memory ──
+    timings["retrieval_ms"] = retrieval_trace["timing_ms"]
+    reasoning_steps.append(
+        f"Retriever returned `{len(retrieved_context)}` candidate chunks"
+        if retrieved_context
+        else "Retriever found no grounded chunks"
+    )
+
+    memory_trace = _start_trace(
+        traces,
+        key="memory",
+        label="Memory",
+        description="Loads short-term session exchanges for continuity.",
+        input_snippet=session_id,
+    )
     session_context = get_session_context(session_id)
     session_info = get_session_info(session_id)
-    if session_context:
-        reasoning_steps.append(f"6. Loaded session memory ({session_info['exchanges']} prior exchanges)")
-    else:
-        reasoning_steps.append("6. No prior session context")
-
-    # ── Stage 4: Tool Execution ──
-    plan["tools_needed"] = _build_tools_needed(
-        plan,
-        has_docs=has_docs,
-        has_inline=has_inline,
-        has_session_memory=bool(session_context),
+    _finish_trace(
+        memory_trace,
+        status="completed",
+        output=f"{session_info['exchanges']} exchanges loaded",
+        log="No prior exchanges" if not session_context else "Session context injected",
     )
-    tools_used = await execute_tools(plan, query, document_id)
-    reasoning_steps.append(f"7. Executed {len(tools_used)} tools: {', '.join(t['name'] for t in tools_used)}")
+    timings["memory_ms"] = memory_trace["timing_ms"]
+    reasoning_steps.append(f"Memory loaded `{session_info['exchanges']}` prior exchanges")
 
-    # ── Stage 5: LLM Response Generation ──
-    reasoning_steps.append("8. Generating grounded response via Groq...")
+    tool_trace = _start_trace(
+        traces,
+        key="tool_router",
+        label="Tool Router",
+        description="Schedules deterministic tools for retrieval-backed composition.",
+        input_snippet=", ".join(plan.get("tools_needed", [])),
+    )
+    tools_used = await execute_tools(
+        plan,
+        query,
+        document_id,
+        retrieval_timing_ms=retrieval_timing_ms or retrieval_trace["timing_ms"],
+    )
+    _finish_trace(
+        tool_trace,
+        status="completed",
+        output=", ".join(tool["name"] for tool in tools_used),
+        log=f"{len(tools_used)} tool events recorded",
+    )
+    timings["tool_routing_ms"] = tool_trace["timing_ms"]
 
-    # Build context section
+    if strict_retrieval and has_docs and not retrieved_context:
+        formatter_trace = _start_trace(
+            traces,
+            key="output_formatter",
+            label="Output Formatter",
+            description="Formats the final recruiter-visible structured result.",
+            input_snippet="strict retrieval empty",
+        )
+        _finish_trace(
+            formatter_trace,
+            status="completed",
+            output="Not found in indexed document.",
+            log="Strict retrieval mode prevented an ungrounded answer.",
+        )
+        timings["output_formatter_ms"] = formatter_trace["timing_ms"]
+        timings["total_ms"] = round((time.perf_counter() - started) * 1000, 2)
+        add_exchange(session_id, query, "Not found in indexed document.")
+        payload = _build_not_found_payload(session_id, traces, tools_used, timings)
+        payload["query"] = query
+        return payload
+
+    generation_trace = _start_trace(
+        traces,
+        key="response_generator",
+        label="Response Generator",
+        description="Produces the final grounded answer from retrieved context.",
+        input_snippet=query[:240],
+    )
+
     if retrieved_context:
-        context_lines = ["Retrieved Context:"]
-        for i, ctx in enumerate(retrieved_context):
-            context_lines.append(f"\n--- Document {i+1} (source: {ctx['source']}, relevance: {ctx['relevance']}) ---")
-            context_lines.append(ctx["text"][:1000])
-        context_section = "\n".join(context_lines)
+        context_lines = []
+        for index, item in enumerate(retrieved_context[:5], start=1):
+            context_lines.append(
+                f"[{index}] {_summarize_context_item(item)}\n{item['text'][:1200]}"
+            )
+        context_section = "\n\n".join(context_lines)
     else:
-        context_section = "No document context available."
+        context_section = "No retrieval context available."
 
-    memory_section = f"Session Memory:\n{session_context}" if session_context else ""
+    memory_section = session_context if session_context else "No prior session context."
+    prompt = f"""User Query: {query}
+
+Retrieved Context:
+{context_section}
+
+Session Memory:
+{memory_section}
+
+Return:
+1. A concise answer grounded in the retrieved context.
+2. Inline citations [1], [2] where relevant.
+3. If multiple facts are required, use short bullets.
+"""
 
     response_text = await generate_response(
-        prompt=RESPONSE_PROMPT.format(
-            query=query,
-            context_section=context_section,
-            memory_section=memory_section,
-        ),
-        temperature=0.7,
-        max_tokens=2048,
+        prompt=prompt,
+        system_instruction=STRICT_SYSTEM_PROMPT if strict_retrieval and has_docs else GENERAL_SYSTEM_PROMPT,
+        temperature=0.2 if retrieved_context else 0.5,
+        max_tokens=900,
     )
+    _finish_trace(
+        generation_trace,
+        status="completed",
+        output=response_text[:180],
+        log="Grounded answer generated",
+    )
+    timings["generation_ms"] = generation_trace["timing_ms"]
 
-    reasoning_steps.append("9. Response generated successfully")
+    formatter_trace = _start_trace(
+        traces,
+        key="output_formatter",
+        label="Output Formatter",
+        description="Packages answer, excerpts, citations, and runtime metrics.",
+        input_snippet=response_text[:180],
+    )
+    supporting_excerpts = _build_supporting_excerpts(retrieved_context)
+    sources = _build_sources(retrieved_context)
+    _finish_trace(
+        formatter_trace,
+        status="completed",
+        output=f"{len(supporting_excerpts)} excerpts, {len(sources)} sources",
+        log="Structured payload ready for frontend panels",
+    )
+    timings["output_formatter_ms"] = formatter_trace["timing_ms"]
+    timings["total_ms"] = round((time.perf_counter() - started) * 1000, 2)
 
-    # ── Stage 6: Store in memory ──
-    summary = response_text[:200] if response_text else "No response generated"
-    add_exchange(session_id, query, summary)
+    add_exchange(session_id, query, response_text[:200] if response_text else "No response generated")
 
-    # ── Format context for frontend ──
     formatted_context = []
-    for ctx in retrieved_context:
-        formatted_context.append({
-            "text": ctx["text"][:300] + ("..." if len(ctx["text"]) > 300 else ""),
-            "source": ctx["source"],
-            "relevance": ctx["relevance"],
-        })
-
-    # ── Format tools for frontend ──
-    formatted_tools = []
-    for tool in tools_used:
-        formatted_tools.append({
-            "name": tool["name"],
-            "status": tool["status"],
-            "detail": tool["detail"],
-        })
+    for item in retrieved_context:
+        formatted_context.append(
+            {
+                "text": item["text"][:320] + ("..." if len(item["text"]) > 320 else ""),
+                "source": item.get("source", "unknown"),
+                "relevance": item.get("combined_score", item.get("relevance", 0.0)),
+                "section_title": item.get("section_title"),
+                "page_number": item.get("page_number"),
+                "slide_number": item.get("slide_number"),
+            }
+        )
 
     return {
+        "query": query,
         "reasoning": reasoning_steps,
         "context": formatted_context,
-        "tools": formatted_tools,
+        "tools": tools_used,
         "response": response_text,
         "session_id": session_id,
+        "execution_trace": traces,
+        "structured_output": {
+            "answer": response_text,
+            "supporting_excerpts": supporting_excerpts,
+            "sources": sources,
+        },
+        "timings": timings,
+        "strict_mode": strict_retrieval and has_docs,
     }

@@ -42,6 +42,15 @@ def _get_client() -> Groq:
     return _client
 
 
+def warmup_llm_client() -> dict:
+    client = _get_client()
+    return {
+        "llm_client_ready": client is not None,
+        "llm_model": LLM_MODEL,
+        "vision_model": VISION_MODEL,
+    }
+
+
 async def generate_response(
     prompt: str,
     system_instruction: str | None = None,
